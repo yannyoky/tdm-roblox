@@ -12,6 +12,9 @@ local Weapons = require(Shared.Config.Weapons)
 
 local WeaponService = require(script.Parent.WeaponService)
 local PhysicsSetup = require(script.Parent.PhysicsSetup)
+local DamageService = require(script.Parent.DamageService)
+local GrenadeService = require(script.Parent.GrenadeService)
+local Combat = require(Shared.Config.Combat)
 
 local BotService = {}
 
@@ -25,6 +28,9 @@ local hooks = {
 	getEnemies = function(_bot)
 		return {}
 	end, -- список бойцов-врагов
+	getAllies = function(_bot)
+		return {}
+	end, -- список бойцов своей команды
 	isAlive = function(_entity)
 		return false
 	end,
@@ -75,6 +81,7 @@ function BotService.create(teamKey: string)
 		stuckTime = 0,
 		strafeDir = 1,
 		strafeTime = 0,
+		reviveTime = 0,
 	}
 	table.insert(bots, bot)
 	return bot
@@ -166,6 +173,10 @@ local function charParts(entity)
 end
 
 local function canSee(bot, head: BasePart, target): Vector3?
+	-- Ослеплён светошумовой.
+	if (bot.Character:GetAttribute("BlindUntil") or 0) > os.clock() then
+		return nil
+	end
 	local tchar = target.Character
 	local tpart = tchar and (tchar:FindFirstChild("UpperTorso") or tchar:FindFirstChild("HumanoidRootPart"))
 	if not tpart then
@@ -173,6 +184,9 @@ local function canSee(bot, head: BasePart, target): Vector3?
 	end
 	local offset = tpart.Position - head.Position
 	if offset.Magnitude > BotsConfig.ViewDistance then
+		return nil
+	end
+	if GrenadeService.blocksSight(head.Position, tpart.Position) then
 		return nil
 	end
 	local params = RaycastParams.new()
@@ -266,6 +280,10 @@ local function think(bot, dt: number)
 	if not head then
 		return
 	end
+	if DamageService.isDowned(char) then
+		hum:Move(Vector3.zero)
+		return
+	end
 	local tool = char:FindFirstChildOfClass("Tool")
 	local def = Weapons.List[bot.WeaponId]
 
@@ -321,8 +339,42 @@ local function think(bot, dt: number)
 		return
 	end
 
-	-- Врагов не видно: идём к цели режима или к ближайшему врагу.
 	hum.AutoRotate = true
+
+	-- Врагов не видно: сначала поднимаем раненого союзника рядом.
+	local downedAlly, allyDist = nil, 40
+	for _, ally in hooks.getAllies(bot) do
+		local achar = ally.Character
+		local aroot = achar and achar:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if ally ~= bot and aroot and DamageService.isDowned(achar) then
+			local d = (aroot.Position - root.Position).Magnitude
+			if d < allyDist then
+				downedAlly, allyDist = ally, d
+			end
+		end
+	end
+	if downedAlly then
+		local achar = downedAlly.Character
+		local aroot = achar:FindFirstChild("HumanoidRootPart") :: BasePart
+		if allyDist < 5 then
+			hum:Move(Vector3.zero)
+			bot.reviveTime += dt
+			if bot.reviveTime >= Combat.Downed.ReviveTime then
+				bot.reviveTime = 0
+				local ahum = achar:FindFirstChildOfClass("Humanoid")
+				if ahum then
+					DamageService.revive(ahum)
+				end
+			end
+		else
+			bot.reviveTime = 0
+			navigate(bot, hum, root, aroot.Position)
+		end
+		return
+	end
+	bot.reviveTime = 0
+
+	-- Дальше идём к цели режима или к ближайшему врагу.
 	local goal = hooks.getObjective(bot) or nearestEnemyPosition(bot, root.Position)
 	if goal then
 		navigate(bot, hum, root, goal)

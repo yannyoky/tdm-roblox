@@ -13,6 +13,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ModesConfig = require(Shared.Config.Modes)
 local TeamsConfig = require(Shared.Config.Teams)
 local BotsConfig = require(Shared.Config.Bots)
+local Combat = require(Shared.Config.Combat)
 local Progression = require(Shared.Config.Progression)
 local Net = require(Shared.Net)
 
@@ -24,6 +25,7 @@ local WeaponService = require(Services.WeaponService)
 local MapService = require(Services.MapService)
 local BotService = require(Services.BotService)
 local PhysicsSetup = require(Services.PhysicsSetup)
+local DamageService = require(Services.DamageService)
 
 local MatchConfig = ModesConfig.Match
 local TEAM_KEYS = TeamsConfig.Order
@@ -85,7 +87,7 @@ local function getTeamMembers(key: string)
 	return list
 end
 
--- Жив и находится на арене (не в лобби).
+-- Жив (в том числе ранен) и находится на арене, а не в лобби.
 local function isAlive(entity): boolean
 	local char = entity.Character
 	if not char or char.Parent == nil or char:GetAttribute("InLobby") then
@@ -93,6 +95,11 @@ local function isAlive(entity): boolean
 	end
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	return hum ~= nil and hum.Health > 0 and char:FindFirstChild("HumanoidRootPart") ~= nil
+end
+
+-- В строю: жив и не ранен. Раненый не держит точку и не считается живым для раундов.
+local function isActive(entity): boolean
+	return isAlive(entity) and not DamageService.isDowned(entity.Character)
 end
 
 local function otherTeam(key: string): string
@@ -145,6 +152,9 @@ local function spawnEntity(entity, forceLobby: boolean?)
 	if isBot(entity) then
 		if phase == "Match" and key and not forceLobby then
 			BotService.spawn(entity, pickSpawn(key), MatchConfig.SpawnProtection)
+			if entity.Character and math.random() < 0.5 then
+				DamageService.giveArmor(entity.Character)
+			end
 		else
 			BotService.despawn(entity)
 		end
@@ -165,7 +175,11 @@ local function spawnEntity(entity, forceLobby: boolean?)
 	char:SetAttribute("InLobby", not onArena)
 	char:PivotTo(pickSpawn(if onArena then key :: string else "Lobby"))
 	if onArena then
-		WeaponService.giveInventory(player, DataService.getInventory(player))
+		local inventory = DataService.getInventory(player)
+		WeaponService.giveInventory(player, inventory)
+		if table.find(inventory, "Armor") then
+			DamageService.giveArmor(char)
+		end
 		local shield = Instance.new("ForceField")
 		shield.Parent = char
 		task.delay(MatchConfig.SpawnProtection, function()
@@ -231,7 +245,8 @@ local api = {
 	getTeamPlayers = getTeamMembers, -- старое имя, оставлено для совместимости
 	getTeamMembers = getTeamMembers,
 	getTeamKey = getTeamKey,
-	isAlive = isAlive,
+	isAlive = isActive, -- для режимов «живой» = в строю (не ранен)
+	isAliveOrDowned = isAlive,
 	isBot = isBot,
 	otherTeam = otherTeam,
 	respawnAll = respawnAll,
@@ -524,11 +539,22 @@ function MatchService.start()
 		idOf = entityId,
 	})
 
+	DamageService.setHooks({
+		getTeamKey = getTeamKey,
+		fromCharacter = entityFromCharacter,
+		downedAllowed = function()
+			return phase == "Match" and mode ~= nil and Combat.Downed.Enabled and mode.def.DownedEnabled ~= false
+		end,
+	})
+
 	BotService.setHooks({
 		getEnemies = function(bot)
 			return getTeamMembers(otherTeam(bot.TeamKey))
 		end,
-		isAlive = isAlive,
+		getAllies = function(bot)
+			return getTeamMembers(bot.TeamKey)
+		end,
+		isAlive = isActive,
 		getObjective = function(bot)
 			return if mode then mode:GetObjective(bot) else nil
 		end,

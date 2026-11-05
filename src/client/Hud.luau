@@ -267,7 +267,9 @@ function Hud.init()
 			return
 		end
 		ammoLabel.Visible = true
-		if not def.MagSize then
+		if tool:GetAttribute("Count") then
+			ammoLabel.Text = string.format("%s: %d", def.DisplayName, tool:GetAttribute("Count"))
+		elseif not def.MagSize then
 			ammoLabel.Text = def.DisplayName
 		elseif tool:GetAttribute("Reloading") then
 			ammoLabel.Text = "Перезарядка..."

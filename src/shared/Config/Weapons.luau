@@ -13,8 +13,8 @@
 --   Zoom          -- угол обзора камеры в прицеле (правая кнопка мыши)
 local Weapons = {}
 
-Weapons.Slots = { "Primary", "Secondary", "Melee" }
-Weapons.SlotNames = { Primary = "Основное", Secondary = "Пистолет", Melee = "Ближний бой" }
+Weapons.Slots = { "Primary", "Secondary", "Melee", "Equipment" }
+Weapons.SlotNames = { Primary = "Основное", Secondary = "Пистолеты", Melee = "Ближний бой", Equipment = "Снаряжение" }
 
 -- Инвентарь без ограничений: игрок берёт в бой любое открытое оружие, хоть всё сразу.
 -- Slot нужен только для группировки в меню.
@@ -199,7 +199,67 @@ Weapons.List = {
 		HandleSize = Vector3.new(0.35, 0.35, 3),
 		Color = Color3.fromRGB(150, 110, 70),
 	},
+
+	-- Снаряжение. Kind = "Grenade" (бросается как оружие) или "Armor" (надевается при появлении).
+	Frag = {
+		Slot = "Equipment",
+		Kind = "Grenade",
+		GrenadeType = "Frag",
+		DisplayName = "Осколочная граната",
+		UnlockLevel = 2,
+		Count = 2,
+		FireRate = 1,
+		Range = 0,
+		ThrowSpeed = 65,
+		Fuse = 2.5,
+		Radius = 18,
+		Damage = 130,
+		HandleSize = Vector3.new(0.7, 0.9, 0.7),
+		Color = Color3.fromRGB(60, 75, 50),
+	},
+	Smoke = {
+		Slot = "Equipment",
+		Kind = "Grenade",
+		GrenadeType = "Smoke",
+		DisplayName = "Дымовая граната",
+		UnlockLevel = 4,
+		Count = 2,
+		FireRate = 1,
+		Range = 0,
+		ThrowSpeed = 60,
+		Fuse = 1.5,
+		Radius = 14,
+		Duration = 18,
+		HandleSize = Vector3.new(0.6, 1.1, 0.6),
+		Color = Color3.fromRGB(150, 150, 150),
+	},
+	Flash = {
+		Slot = "Equipment",
+		Kind = "Grenade",
+		GrenadeType = "Flash",
+		DisplayName = "Светошумовая граната",
+		UnlockLevel = 7,
+		Count = 2,
+		FireRate = 1,
+		Range = 0,
+		ThrowSpeed = 65,
+		Fuse = 1.6,
+		Radius = 30,
+		Duration = 3,
+		HandleSize = Vector3.new(0.6, 1, 0.6),
+		Color = Color3.fromRGB(70, 90, 140),
+	},
+	Armor = {
+		Slot = "Equipment",
+		Kind = "Armor",
+		DisplayName = "Бронежилет",
+		UnlockLevel = 3,
+	},
 }
+
+for id, def in Weapons.List do
+	def.Id = id
+end
 
 -- Открыт ли предмет на уровне level.
 function Weapons.isUnlocked(id: string, level: number): boolean

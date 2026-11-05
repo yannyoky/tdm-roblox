@@ -10,6 +10,7 @@ local REMOTES = {
 	"KillFeed", -- сервер → все: (killerName?, victimName, weaponId?)
 	"HitMarker", -- сервер → стрелок: попадание (isHeadshot)
 	"ShotFx", -- сервер → все: трассер (origin, endPos, isMelee, hitSomething)
+	"Flash", -- сервер → игрок: ослепление светошумовой (intensity 0..1)
 	"SetInventoryItem", -- клиент → сервер: взять/убрать предмет (itemId, enabled)
 }
 

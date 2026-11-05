@@ -13,6 +13,9 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Weapons = require(Shared.Config.Weapons)
 local Net = require(Shared.Net)
 
+local DamageService = require(script.Parent.DamageService)
+local GrenadeService = require(script.Parent.GrenadeService)
+
 local MAX_ORIGIN_OFFSET = 8 -- насколько точка выстрела может отличаться от головы
 local FIRE_RATE_TOLERANCE = 0.8 -- запас на сетевые задержки
 local MAX_PENETRATIONS = 1
@@ -39,6 +42,7 @@ function WeaponService.setHooks(newHooks)
 	for k, v in newHooks do
 		hooks[k] = v
 	end
+	GrenadeService.setHooks(hooks)
 end
 
 function WeaponService.makeTool(id: string): Tool?
@@ -54,6 +58,10 @@ function WeaponService.makeTool(id: string): Tool?
 	tool:SetAttribute("Reloading", false)
 	if def.MagSize then
 		tool:SetAttribute("Ammo", def.MagSize)
+	end
+	if def.Count then
+		tool:SetAttribute("Count", def.Count)
+		tool.Name = string.format("%s x%d", def.DisplayName, def.Count)
 	end
 
 	local handle = Instance.new("Part")
@@ -76,9 +84,13 @@ function WeaponService.giveInventory(player: Player, items: { string })
 	end
 	backpack:ClearAllChildren()
 	for _, id in items do
-		local tool = WeaponService.makeTool(id)
-		if tool then
-			tool.Parent = backpack
+		local def = Weapons.List[id]
+		-- Броня не оружие: её надевает MatchService при появлении.
+		if def and def.Kind ~= "Armor" then
+			local tool = WeaponService.makeTool(id)
+			if tool then
+				tool.Parent = backpack
+			end
 		end
 	end
 end
@@ -166,7 +178,7 @@ local function traceBullet(shooter, char: Model, def, weaponId: string, origin: 
 				local damage = def.Damage * mult * falloff(def, traveled) * damageMult
 				targetHum:SetAttribute("LastAttacker", hooks.idOf(shooter))
 				targetHum:SetAttribute("LastWeapon", weaponId)
-				targetHum:TakeDamage(damage) -- ForceField (защита на спавне) блокирует урон
+				DamageService.apply(shooter, target, targetHum, damage, isHead)
 				if typeof(shooter) == "Instance" then
 					Net.get("HitMarker"):FireClient(shooter, isHead)
 				end
@@ -203,7 +215,7 @@ function WeaponService.fire(shooter, char: Model?, weaponId: string, origin: Vec
 	end
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	local head = char:FindFirstChild("Head") :: BasePart?
-	if not hum or hum.Health <= 0 or not head then
+	if not hum or hum.Health <= 0 or not head or DamageService.isDowned(char) then
 		return false
 	end
 	local tool = getEquipped(char, weaponId)
@@ -240,6 +252,22 @@ function WeaponService.fire(shooter, char: Model?, weaponId: string, origin: Vec
 	end
 
 	local unit = direction.Unit
+
+	if def.Kind == "Grenade" then
+		local count = tool:GetAttribute("Count") or 0
+		if count <= 0 then
+			return false
+		end
+		count -= 1
+		tool:SetAttribute("Count", count)
+		tool.Name = string.format("%s x%d", def.DisplayName, count)
+		GrenadeService.throw(shooter, char, def, origin, unit)
+		if count <= 0 then
+			tool:Destroy()
+		end
+		return true
+	end
+
 	local fx = Net.get("ShotFx")
 	for _ = 1, def.Pellets or 1 do
 		local dir = applySpread(unit, def.Spread or 0)
