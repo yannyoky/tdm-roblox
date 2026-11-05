@@ -1,127 +1,152 @@
--- Карта. Ожидаемая структура в Workspace (её можно построить в Studio):
---   Map/
---     Spawns/Bandits, Spawns/Gov, Spawns/Lobby  -- детали-точки появления
---     CapturePoints/                             -- плоские детали-зоны для капта
--- Если Map нет, строим простую тестовую арену, чтобы игра запускалась сразу.
+-- Карты и их ротация. Карты собираются кодом из Config/Maps (см. src/server/World/MapBuilder).
+-- Структура Workspace.Map, которую читают MatchService и режимы:
+--   Map/Spawns/<Team>           -- база команды на краю карты (капт: появляемся здесь и едем в зону)
+--   Map/Spawns/<Team>_Forward   -- передовая точка ближе к центру (TDM: быстрее в бой)
+--   Map/Spawns/Lobby
+--   Map/CapturePoints/<Parts>   -- зоны капта
+--   Map/Bases/<Team>            -- объём базы: чужим здесь наносится урон
+--   Map/VehiclePads/<Team>/...  -- площадки автопарка
+-- Если карту положили в Workspace.Map руками в Studio, ротация выключается и используется она.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Teams = require(ReplicatedStorage:WaitForChild("Shared").Config.Teams)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local MapsConfig = require(Shared.Config.Maps)
+local MapBuilder = require(script.Parent.Parent:WaitForChild("World"):WaitForChild("MapBuilder"))
+
+local ENEMY_BASE_DPS = 25 -- урон в секунду чужаку на базе
 
 local MapService = {}
 
-local function part(parent: Instance, name: string, size: Vector3, cframe: CFrame, props: { [string]: any }?): Part
-	local p = Instance.new("Part")
-	p.Name = name
-	p.Anchored = true
-	p.Size = size
-	p.CFrame = cframe
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.Material = Enum.Material.Concrete
-	p.Color = Color3.fromRGB(150, 150, 150)
-	if props then
-		for key, value in props do
-			(p :: any)[key] = value
-		end
-	end
-	p.Parent = parent
-	return p
-end
+local changed = Instance.new("BindableEvent")
+-- Сигнал смены карты: MapService.Changed:Connect(function(map: Folder) ... end)
+MapService.Changed = changed.Event
 
--- Невидимая для пуль точка появления.
-local function marker(parent: Instance, name: string, position: Vector3, color: Color3)
-	return part(parent, name, Vector3.new(6, 0.4, 6), CFrame.new(position), {
-		Color = color,
-		Transparency = 0.6,
-		CanCollide = false,
-		CanQuery = false,
-		CanTouch = false,
-		Material = Enum.Material.Neon,
-	})
-end
+local current: Folder? = nil
+local handmade = false
+local index = 0
+local fresh = false -- карта только что собрана и ещё не сыграна
 
-local function folder(parent: Instance, name: string): Folder
-	local f = Instance.new("Folder")
-	f.Name = name
-	f.Parent = parent
-	return f
-end
-
-local function build(): Folder
-	warn("[MapService] Workspace.Map не найден, строю тестовую арену")
-	local map = Instance.new("Folder")
-	map.Name = "Map"
-	local geo = folder(map, "Geometry")
-
-	local W, D, H = 240, 160, 20
-	part(geo, "Floor", Vector3.new(W, 2, D), CFrame.new(0, -1, 0), { Color = Color3.fromRGB(90, 95, 100) })
-	part(geo, "Wall", Vector3.new(W, H, 2), CFrame.new(0, H / 2, D / 2 + 1))
-	part(geo, "Wall", Vector3.new(W, H, 2), CFrame.new(0, H / 2, -D / 2 - 1))
-	part(geo, "Wall", Vector3.new(2, H, D), CFrame.new(W / 2 + 1, H / 2, 0))
-	part(geo, "Wall", Vector3.new(2, H, D), CFrame.new(-W / 2 - 1, H / 2, 0))
-
-	-- Укрытия, симметрично для обеих сторон.
-	local covers = {
-		{ Vector3.new(12, 8, 4), Vector3.new(40, 4, 30) },
-		{ Vector3.new(12, 8, 4), Vector3.new(40, 4, -30) },
-		{ Vector3.new(4, 6, 16), Vector3.new(70, 3, 0) },
-		{ Vector3.new(8, 4, 8), Vector3.new(85, 2, 50) },
-		{ Vector3.new(8, 4, 8), Vector3.new(85, 2, -50) },
-		{ Vector3.new(2, 6, 14), Vector3.new(18, 3, 0) },
-		{ Vector3.new(20, 10, 4), Vector3.new(20, 5, 55) },
-		{ Vector3.new(20, 10, 4), Vector3.new(20, 5, -55) },
-	}
-	for _, c in covers do
-		local size, pos = c[1], c[2]
-		part(geo, "Cover", size, CFrame.new(pos), { Color = Color3.fromRGB(120, 110, 100) })
-		part(geo, "Cover", size, CFrame.new(-pos.X, pos.Y, -pos.Z), { Color = Color3.fromRGB(120, 110, 100) })
-	end
-	-- Центральные укрытия у точки захвата.
-	part(geo, "Cover", Vector3.new(6, 4, 2), CFrame.new(0, 2, 18), { Color = Color3.fromRGB(110, 100, 90) })
-	part(geo, "Cover", Vector3.new(6, 4, 2), CFrame.new(0, 2, -18), { Color = Color3.fromRGB(110, 100, 90) })
-
-	-- Точки появления команд.
-	local spawns = folder(map, "Spawns")
-	local teamA, teamB = Teams.Order[1], Teams.Order[2]
-	local spawnA = folder(spawns, teamA)
-	local spawnB = folder(spawns, teamB)
-	for i, z in { -30, -10, 10, 30 } do
-		marker(spawnA, "Spawn" .. i, Vector3.new(-105, 0.2, z), Teams.List[teamA].Color)
-		marker(spawnB, "Spawn" .. i, Vector3.new(105, 0.2, z), Teams.List[teamB].Color)
-	end
-
-	-- Лобби: площадка над ареной, оттуда видно бой.
-	local lobbyY = 80
-	part(geo, "LobbyFloor", Vector3.new(40, 2, 40), CFrame.new(0, lobbyY - 1, 0), { Color = Color3.fromRGB(70, 70, 80) })
-	part(geo, "LobbyRail", Vector3.new(40, 6, 1), CFrame.new(0, lobbyY + 3, 20))
-	part(geo, "LobbyRail", Vector3.new(40, 6, 1), CFrame.new(0, lobbyY + 3, -20))
-	part(geo, "LobbyRail", Vector3.new(1, 6, 40), CFrame.new(20, lobbyY + 3, 0))
-	part(geo, "LobbyRail", Vector3.new(1, 6, 40), CFrame.new(-20, lobbyY + 3, 0))
-	local lobby = folder(spawns, "Lobby")
-	for i, offset in { Vector3.new(-8, 0, -8), Vector3.new(8, 0, -8), Vector3.new(-8, 0, 8), Vector3.new(8, 0, 8) } do
-		marker(lobby, "Spawn" .. i, Vector3.new(0, lobbyY + 0.2, 0) + offset, Color3.fromRGB(230, 230, 230))
-	end
-
-	-- Точка захвата в центре.
-	local points = folder(map, "CapturePoints")
-	part(points, "Район А", Vector3.new(24, 1, 24), CFrame.new(0, 0.5, 0), {
-		Transparency = 0.6,
-		CanCollide = false,
-		CanQuery = false,
-		CanTouch = false,
-		Material = Enum.Material.SmoothPlastic,
-		Color = Color3.fromRGB(240, 240, 240),
-	})
-
+local function setCurrent(map: Folder)
+	current = map
 	map.Parent = workspace
+	ReplicatedStorage:SetAttribute("MapName", map:GetAttribute("MapName") or map.Name)
+	changed:Fire(map)
+end
+
+local function load(mapId: string): Folder
+	if current then
+		current:Destroy()
+		current = nil
+	end
+	local t = os.clock()
+	local map = MapBuilder.build(mapId)
+	print(string.format("[MapService] Карта «%s» собрана за %.2f с", MapsConfig.List[mapId].Name, os.clock() - t))
+	setCurrent(map)
 	return map
 end
 
+-- Текущая карта (при первом вызове собирает первую карту из ротации).
 function MapService.get(): Folder
-	local map = workspace:FindFirstChild("Map")
-	if map then
-		return map :: Folder
+	if current then
+		return current
 	end
-	return build()
+	MapBuilder.ensureLobby()
+	local existing = workspace:FindFirstChild("Map")
+	if existing then
+		handmade = true
+		setCurrent(existing :: Folder)
+		return existing :: Folder
+	end
+	index = 1
+	fresh = true
+	return load(MapsConfig.Order[index])
 end
+
+-- Следующая карта по кругу. Вызывается перед каждым матчем.
+function MapService.nextMap(): Folder
+	if handmade or #MapsConfig.Order <= 1 or fresh then
+		fresh = false
+		return MapService.get()
+	end
+	index = index % #MapsConfig.Order + 1
+	return load(MapsConfig.Order[index])
+end
+
+-- Собрать конкретную карту (для голосования за карту и тестов).
+function MapService.load(mapId: string): Folder
+	MapBuilder.ensureLobby()
+	local i = table.find(MapsConfig.Order, mapId)
+	if i then
+		index = i
+	end
+	return load(mapId)
+end
+
+-- Папка точек появления для команды в зависимости от режима:
+-- режим с SpawnAtBase (капт) — база, иначе передовая точка, если она есть.
+function MapService.spawnFolder(teamKey: string, modeDef): string
+	if modeDef and not modeDef.SpawnAtBase and current then
+		local spawns = current:FindFirstChild("Spawns")
+		if spawns and spawns:FindFirstChild(teamKey .. "_Forward") then
+			return teamKey .. "_Forward"
+		end
+	end
+	return teamKey
+end
+
+-- Находится ли точка внутри базы команды.
+function MapService.isInBase(position: Vector3, teamKey: string): boolean
+	local bases = current and current:FindFirstChild("Bases")
+	local volume = bases and bases:FindFirstChild(teamKey) :: BasePart?
+	if not volume then
+		return false
+	end
+	local rel = volume.CFrame:PointToObjectSpace(position)
+	local s = volume.Size
+	return math.abs(rel.X) <= s.X / 2 and math.abs(rel.Y) <= s.Y / 2 and math.abs(rel.Z) <= s.Z / 2
+end
+
+-- Защита баз: чужак на базе получает урон и предупреждение (атрибут InEnemyBase для HUD).
+local function guardBases()
+	local acc = 0
+	RunService.Heartbeat:Connect(function(dt)
+		acc += dt
+		if acc < 0.5 or not current then
+			return
+		end
+		local step = acc
+		acc = 0
+		local bases = current:FindFirstChild("Bases")
+		if not bases then
+			return
+		end
+		for _, player in Players:GetPlayers() do
+			local team = player.Team and player.Team:GetAttribute("Key")
+			local char = player.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			local inEnemy = false
+			if team and root and hum and hum.Health > 0 and not char:GetAttribute("InLobby") then
+				for _, volume in bases:GetChildren() do
+					local owner = volume:GetAttribute("Team")
+					if owner and owner ~= team and MapService.isInBase(root.Position, owner) then
+						inEnemy = true
+						break
+					end
+				end
+				if inEnemy then
+					hum:TakeDamage(ENEMY_BASE_DPS * step)
+				end
+			end
+			if char and char:GetAttribute("InEnemyBase") ~= inEnemy then
+				char:SetAttribute("InEnemyBase", inEnemy)
+			end
+		end
+	end)
+end
+
+guardBases()
 
 return MapService
