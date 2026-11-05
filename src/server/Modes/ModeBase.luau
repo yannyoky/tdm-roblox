@@ -3,7 +3,9 @@
 -- api (передаёт MatchService):
 --   api.map                       -- папка Workspace.Map
 --   api.teams                     -- { "Bandits", "Gov" }
---   api.getTeamPlayers(team)      -- игроки команды
+--   api.getTeamMembers(team)      -- бойцы команды: игроки и боты (у всех есть .Character)
+--   api.getTeamPlayers(team)      -- то же самое (старое имя)
+--   api.isBot(entity)
 --   api.getTeamKey(player)        -- ключ команды игрока или nil
 --   api.isAlive(player)           -- жив и на арене (не в лобби)
 --   api.otherTeam(team)
@@ -70,6 +72,11 @@ function ModeBase:GetTimeoutWinner(): string
 		return b
 	end
 	return "Draw"
+end
+
+-- Куда идти боту, когда он не видит врагов. nil = к ближайшему врагу.
+function ModeBase:GetObjective(_bot): Vector3?
+	return nil
 end
 
 function ModeBase:Cleanup() end

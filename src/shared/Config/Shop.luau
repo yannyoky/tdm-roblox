@@ -8,9 +8,6 @@ return {
 			XpMultiplier = 1.25,
 			CoinMultiplier = 1.25,
 		},
-		ExtraLoadout = {
-			Id = 0, -- 149 R$, второй слот снаряжения (появится вместе с выбором оружия)
-		},
 	},
 
 	Products = {

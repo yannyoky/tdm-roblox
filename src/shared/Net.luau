@@ -9,7 +9,8 @@ local REMOTES = {
 	"VoteMode", -- клиент → сервер: голос за режим (modeId)
 	"KillFeed", -- сервер → все: (killerName?, victimName, weaponId?)
 	"HitMarker", -- сервер → стрелок: попадание (isHeadshot)
-	"ShotFx", -- сервер → все: трассер (shooter, origin, endPos, isMelee)
+	"ShotFx", -- сервер → все: трассер (origin, endPos, isMelee, hitSomething)
+	"SetInventoryItem", -- клиент → сервер: взять/убрать предмет (itemId, enabled)
 }
 
 local folder: Folder

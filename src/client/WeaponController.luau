@@ -147,27 +147,69 @@ function WeaponController.init()
 	end, true, Enum.KeyCode.R, Enum.KeyCode.ButtonX)
 	ContextActionService:SetTitle("Reload", "R")
 
-	-- Трассеры от выстрелов всех игроков.
-	Net.get("ShotFx").OnClientEvent:Connect(function(_shooter, origin: Vector3, endPos: Vector3, isMelee: boolean)
+	-- Прицел снайперской винтовки: правая кнопка мыши (или кнопка на экране) приближает.
+	local camera = workspace.CurrentCamera
+	local normalFov = camera.FieldOfView
+	local zoomed = false
+	local function setZoom(on: boolean)
+		local _, def = currentDef()
+		on = on and def ~= nil and def.Zoom ~= nil
+		if on == zoomed then
+			return
+		end
+		zoomed = on
+		camera.FieldOfView = if on then def.Zoom else normalFov
+	end
+	ContextActionService:BindAction("Aim", function(_, inputState)
+		if inputState == Enum.UserInputState.Begin then
+			local _, def = currentDef()
+			if not (def and def.Zoom) then
+				return Enum.ContextActionResult.Pass
+			end
+			setZoom(not zoomed)
+			return Enum.ContextActionResult.Sink
+		end
+		return Enum.ContextActionResult.Pass
+	end, true, Enum.UserInputType.MouseButton2, Enum.KeyCode.ButtonL2)
+	ContextActionService:SetTitle("Aim", "Прицел")
+	RunService.RenderStepped:Connect(function()
+		if zoomed and not current then
+			setZoom(false)
+		end
+	end)
+
+	-- Трассеры и следы попаданий от выстрелов всех бойцов.
+	local function effectPart(size: Vector3, cframe: CFrame, color: Color3, lifetime: number)
+		local p = Instance.new("Part")
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Material = Enum.Material.Neon
+		p.Color = color
+		p.Size = size
+		p.CFrame = cframe
+		p.Parent = workspace
+		Debris:AddItem(p, lifetime)
+	end
+
+	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, isMelee: boolean, hitSomething: boolean)
 		if isMelee then
 			return
 		end
 		local distance = (endPos - origin).Magnitude
-		if distance < 0.5 then
-			return
+		if distance >= 0.5 then
+			effectPart(
+				Vector3.new(0.08, 0.08, distance),
+				CFrame.lookAt(origin, endPos) * CFrame.new(0, 0, -distance / 2),
+				Color3.fromRGB(255, 220, 120),
+				0.06
+			)
 		end
-		local tracer = Instance.new("Part")
-		tracer.Anchored = true
-		tracer.CanCollide = false
-		tracer.CanQuery = false
-		tracer.CanTouch = false
-		tracer.CastShadow = false
-		tracer.Material = Enum.Material.Neon
-		tracer.Color = Color3.fromRGB(255, 220, 120)
-		tracer.Size = Vector3.new(0.08, 0.08, distance)
-		tracer.CFrame = CFrame.lookAt(origin, endPos) * CFrame.new(0, 0, -distance / 2)
-		tracer.Parent = workspace
-		Debris:AddItem(tracer, 0.06)
+		if hitSomething then
+			effectPart(Vector3.new(0.35, 0.35, 0.35), CFrame.new(endPos), Color3.fromRGB(255, 170, 60), 0.12)
+		end
 	end)
 end
 

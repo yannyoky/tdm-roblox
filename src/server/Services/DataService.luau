@@ -5,7 +5,9 @@ local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Progression = require(ReplicatedStorage:WaitForChild("Shared").Config.Progression)
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Progression = require(Shared.Config.Progression)
+local Weapons = require(Shared.Config.Weapons)
 
 local STORE_NAME = "PlayerData_v1"
 local AUTOSAVE_INTERVAL = 120
@@ -20,6 +22,7 @@ local DEFAULT_DATA = {
 	Matches = 0,
 	XPBoostUntil = 0, -- os.time(), до которого действует буст опыта
 	Purchases = {}, -- последние PurchaseId, чтобы не выдать покупку дважды
+	Inventory = { "Rifle", "Pistol", "Knife" }, -- что игрок берёт в бой (любое открытое, без ограничений)
 }
 
 type Profile = { data: { [string]: any }, canSave: boolean }
@@ -80,6 +83,7 @@ local function refreshStats(player: Player)
 	player:SetAttribute("XPNeeded", Progression.xpForLevel(data.Level))
 	player:SetAttribute("Coins", data.Coins)
 	player:SetAttribute("XPBoostUntil", data.XPBoostUntil)
+	player:SetAttribute("Inventory", table.concat(data.Inventory, ","))
 end
 
 local function createStats(player: Player)
@@ -162,6 +166,39 @@ function DataService.addReward(player: Player, xp: number, coins: number, stats:
 		d.Level += 1
 	end
 	refreshStats(player)
+end
+
+-- Инвентарь игрока: только открытые по уровню предметы. Пустой инвентарь заменяется стандартным.
+function DataService.getInventory(player: Player): { string }
+	local data = DataService.get(player)
+	local result = {}
+	if data then
+		for _, id in data.Inventory do
+			if Weapons.isUnlocked(id, data.Level) and not table.find(result, id) then
+				table.insert(result, id)
+			end
+		end
+	end
+	if #result == 0 then
+		result = table.clone(Weapons.DefaultInventory)
+	end
+	return result
+end
+
+-- Взять предмет в бой или убрать его из инвентаря.
+function DataService.setInventoryItem(player: Player, itemId: string, enabled: boolean): boolean
+	local data = DataService.get(player)
+	if not data or not Weapons.isUnlocked(itemId, data.Level) then
+		return false
+	end
+	local index = table.find(data.Inventory, itemId)
+	if enabled and not index then
+		table.insert(data.Inventory, itemId)
+	elseif not enabled and index then
+		table.remove(data.Inventory, index)
+	end
+	refreshStats(player)
+	return true
 end
 
 function DataService.addCoins(player: Player, amount: number)

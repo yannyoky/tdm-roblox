@@ -150,6 +150,16 @@ function Capture:GetWinner(): string?
 	return self.winner
 end
 
+-- Боты обеих сторон идут в зону: атакующие захватывать, защитники держать.
+function Capture:GetObjective(bot): Vector3?
+	if not self.zone or self.pause then
+		return nil
+	end
+	bot.zoneOffset = bot.zoneOffset
+		or Vector3.new((math.random() - 0.5) * self.zone.Size.X * 0.6, 0, (math.random() - 0.5) * self.zone.Size.Z * 0.6)
+	return self.zone.Position + bot.zoneOffset
+end
+
 function Capture:Cleanup()
 	if self.zone then
 		self.zone.Color = self.zoneColor

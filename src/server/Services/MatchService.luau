@@ -1,13 +1,18 @@
 -- Цикл игры: лобби и голосование → матч → итоги → снова лобби.
 -- Состояние матча хранится атрибутами папки ReplicatedStorage.MatchState, его читает HUD.
+--
+-- «Боец» — это Player или бот (таблица из BotService). У обоих есть Character, DisplayName, UserId.
+-- Команда игрока — его Team, команда бота — поле TeamKey.
 local Players = game:GetService("Players")
 local TeamsService = game:GetService("Teams")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ModesConfig = require(Shared.Config.Modes)
 local TeamsConfig = require(Shared.Config.Teams)
+local BotsConfig = require(Shared.Config.Bots)
 local Progression = require(Shared.Config.Progression)
 local Net = require(Shared.Net)
 
@@ -17,6 +22,8 @@ local DataService = require(Services.DataService)
 local ShopService = require(Services.ShopService)
 local WeaponService = require(Services.WeaponService)
 local MapService = require(Services.MapService)
+local BotService = require(Services.BotService)
+local PhysicsSetup = require(Services.PhysicsSetup)
 
 local MatchConfig = ModesConfig.Match
 local TEAM_KEYS = TeamsConfig.Order
@@ -29,20 +36,27 @@ local teams: { [string]: Team } = {}
 local phase = "Lobby" -- Lobby | Match | Results
 local mode = nil
 local votes: { [Player]: string } = {}
-local matchStats: { [Player]: { kills: number } } = {}
+local matchStats = {} -- [боец] = { kills = n }
 
 local function setState(name: string, value: any)
 	state:SetAttribute(name, value)
 end
 
-local function getTeamKey(player: Player): string?
-	if player.Neutral or not player.Team then
-		return nil
-	end
-	return player.Team:GetAttribute("Key")
+local function isBot(entity): boolean
+	return type(entity) == "table" and entity.IsBot == true
 end
 
-local function getTeamPlayers(key: string): { Player }
+local function getTeamKey(entity): string?
+	if isBot(entity) then
+		return entity.TeamKey
+	end
+	if entity.Neutral or not entity.Team then
+		return nil
+	end
+	return entity.Team:GetAttribute("Key")
+end
+
+local function getTeamHumans(key: string): { Player }
 	local list = {}
 	for _, player in Players:GetPlayers() do
 		if getTeamKey(player) == key then
@@ -52,10 +66,29 @@ local function getTeamPlayers(key: string): { Player }
 	return list
 end
 
+local function getTeamBots(key: string)
+	local list = {}
+	for _, bot in BotService.all() do
+		if bot.TeamKey == key then
+			table.insert(list, bot)
+		end
+	end
+	return list
+end
+
+-- Все бойцы команды: игроки и боты.
+local function getTeamMembers(key: string)
+	local list = getTeamHumans(key)
+	for _, bot in getTeamBots(key) do
+		table.insert(list, bot)
+	end
+	return list
+end
+
 -- Жив и находится на арене (не в лобби).
-local function isAlive(player: Player): boolean
-	local char = player.Character
-	if not char or char:GetAttribute("InLobby") then
+local function isAlive(entity): boolean
+	local char = entity.Character
+	if not char or char.Parent == nil or char:GetAttribute("InLobby") then
 		return false
 	end
 	local hum = char:FindFirstChildOfClass("Humanoid")
@@ -66,6 +99,34 @@ local function otherTeam(key: string): string
 	return if key == TEAM_KEYS[1] then TEAM_KEYS[2] else TEAM_KEYS[1]
 end
 
+local function entityId(entity): string
+	return if isBot(entity) then "b" .. entity.Id else "p" .. entity.UserId
+end
+
+local function entityFromId(id: string?)
+	if type(id) ~= "string" then
+		return nil
+	end
+	local kind, num = id:sub(1, 1), tonumber(id:sub(2))
+	if not num then
+		return nil
+	end
+	if kind == "p" then
+		return Players:GetPlayerByUserId(num)
+	end
+	for _, bot in BotService.all() do
+		if bot.Id == num then
+			return bot
+		end
+	end
+	return nil
+end
+
+local function entityFromCharacter(model: Model)
+	return Players:GetPlayerFromCharacter(model) or BotService.fromCharacter(model)
+end
+
+-- Точка появления. Сюда подключается MapService с отдельными базами команд.
 local function pickSpawn(folderName: string): CFrame
 	local spawns = map:FindFirstChild("Spawns")
 	local folder = spawns and spawns:FindFirstChild(folderName)
@@ -78,22 +139,33 @@ local function pickSpawn(folderName: string): CFrame
 	return spot.CFrame + Vector3.new(0, 4, 0)
 end
 
--- Появление игрока: на арене за свою команду или в лобби.
-local function spawnPlayer(player: Player, forceLobby: boolean?)
+-- Появление бойца: на арене за свою команду или в лобби (только игроки).
+local function spawnEntity(entity, forceLobby: boolean?)
+	local key = getTeamKey(entity)
+	if isBot(entity) then
+		if phase == "Match" and key and not forceLobby then
+			BotService.spawn(entity, pickSpawn(key), MatchConfig.SpawnProtection)
+		else
+			BotService.despawn(entity)
+		end
+		return
+	end
+
+	local player = entity :: Player
 	if player.Parent ~= Players then
 		return
 	end
-	local key = getTeamKey(player)
 	local onArena = phase == "Match" and key ~= nil and not forceLobby
 	player:LoadCharacter()
 	local char = player.Character
 	if not char or player.Parent ~= Players then
 		return
 	end
+	PhysicsSetup.prepareCharacter(char)
 	char:SetAttribute("InLobby", not onArena)
 	char:PivotTo(pickSpawn(if onArena then key :: string else "Lobby"))
 	if onArena then
-		WeaponService.giveLoadout(player)
+		WeaponService.giveInventory(player, DataService.getInventory(player))
 		local shield = Instance.new("ForceField")
 		shield.Parent = char
 		task.delay(MatchConfig.SpawnProtection, function()
@@ -105,15 +177,15 @@ local function spawnPlayer(player: Player, forceLobby: boolean?)
 end
 
 local function respawnAll()
-	for _, player in Players:GetPlayers() do
-		if getTeamKey(player) then
-			task.spawn(spawnPlayer, player)
+	for _, key in TEAM_KEYS do
+		for _, entity in getTeamMembers(key) do
+			task.spawn(spawnEntity, entity)
 		end
 	end
 end
 
 local function assignTeam(player: Player): string
-	local countA, countB = #getTeamPlayers(TEAM_KEYS[1]), #getTeamPlayers(TEAM_KEYS[2])
+	local countA, countB = #getTeamHumans(TEAM_KEYS[1]), #getTeamHumans(TEAM_KEYS[2])
 	local key
 	if countA == countB then
 		key = TEAM_KEYS[math.random(2)]
@@ -126,11 +198,41 @@ local function assignTeam(player: Player): string
 	return key
 end
 
+-- Боты добивают каждую команду до BotsConfig.TeamSize и уходят, когда приходят игроки.
+local function rebalanceBots()
+	if phase ~= "Match" or not BotsConfig.Enabled or not mode then
+		return
+	end
+	for _, key in TEAM_KEYS do
+		local desired = math.max(0, BotsConfig.TeamSize - #getTeamHumans(key))
+		local teamBots = getTeamBots(key)
+		for i = #teamBots, desired + 1, -1 do
+			matchStats[teamBots[i]] = nil
+			BotService.remove(teamBots[i])
+		end
+		for _ = #teamBots + 1, desired do
+			local bot = BotService.create(key)
+			matchStats[bot] = { kills = 0 }
+			if mode:OnPlayerAdded(bot) then
+				task.spawn(spawnEntity, bot)
+			end
+		end
+	end
+end
+
+local function removeAllBots()
+	for _, bot in table.clone(BotService.all()) do
+		BotService.remove(bot)
+	end
+end
+
 local api = {
 	teams = TEAM_KEYS,
-	getTeamPlayers = getTeamPlayers,
+	getTeamPlayers = getTeamMembers, -- старое имя, оставлено для совместимости
+	getTeamMembers = getTeamMembers,
 	getTeamKey = getTeamKey,
 	isAlive = isAlive,
+	isBot = isBot,
 	otherTeam = otherTeam,
 	respawnAll = respawnAll,
 	setState = function(name: string, value: any)
@@ -145,39 +247,62 @@ local api = {
 	map = nil :: Folder?,
 }
 
-local function onDied(player: Player, hum: Humanoid)
-	local char = hum.Parent
-	local killerId = hum:GetAttribute("LastAttacker")
-	local killer = if killerId then Players:GetPlayerByUserId(killerId) else nil
+local function onDied(entity, hum: Humanoid)
+	local char = hum.Parent :: Model
+	local killer = entityFromId(hum:GetAttribute("LastAttacker"))
 	local weaponId = hum:GetAttribute("LastWeapon")
+	local inLobby = char and char:GetAttribute("InLobby")
 
-	if phase == "Match" and mode and not (char and char:GetAttribute("InLobby")) then
-		Net.get("KillFeed"):FireAllClients(if killer then killer.DisplayName else nil, player.DisplayName, weaponId)
-		if killer and killer ~= player and getTeamKey(killer) ~= getTeamKey(player) then
+	if char then
+		PhysicsSetup.ragdoll(char)
+	end
+
+	if phase == "Match" and mode and not inLobby then
+		Net.get("KillFeed"):FireAllClients(if killer then killer.DisplayName else nil, entity.DisplayName, weaponId)
+		if killer and killer ~= entity and getTeamKey(killer) ~= getTeamKey(entity) then
 			local stats = matchStats[killer]
 			if stats then
 				stats.kills += 1
 			end
 		end
-		mode:OnPlayerKilled(player, killer)
+		mode:OnPlayerKilled(entity, killer)
+	end
+
+	if isBot(entity) then
+		-- Тело остаётся лежать несколько секунд.
+		if char then
+			Debris:AddItem(char, 6)
+		end
+		if phase == "Match" and mode and mode:CanRespawn(entity) then
+			task.delay(mode:GetRespawnDelay(), function()
+				if phase == "Match" and entity.Character == char and table.find(BotService.all(), entity) then
+					spawnEntity(entity)
+				end
+			end)
+		end
+		return
+	end
+
+	local player = entity :: Player
+	if phase == "Match" and mode and not inLobby then
 		if mode:CanRespawn(player) then
 			task.delay(mode:GetRespawnDelay(), function()
 				if phase == "Match" and player.Character == char and getTeamKey(player) then
-					spawnPlayer(player)
+					spawnEntity(player)
 				end
 			end)
 		else
 			-- Без возрождения: смотрим бой из лобби до следующего раунда.
 			task.delay(3, function()
 				if phase == "Match" and player.Character == char then
-					spawnPlayer(player, true)
+					spawnEntity(player, true)
 				end
 			end)
 		end
 	else
 		task.delay(2, function()
 			if player.Character == char then
-				spawnPlayer(player, phase == "Match")
+				spawnEntity(player, phase == "Match")
 			end
 		end)
 	end
@@ -218,12 +343,17 @@ local function countVotes(): string
 end
 
 local function minPlayers(): number
-	return if RunService:IsStudio() then MatchConfig.MinPlayersStudio else MatchConfig.MinPlayers
+	if RunService:IsStudio() then
+		return MatchConfig.MinPlayersStudio
+	end
+	-- С ботами можно играть и одному.
+	return if BotsConfig.Enabled then 1 else MatchConfig.MinPlayers
 end
 
 local function runLobby(): string
 	phase = "Lobby"
 	mode = nil
+	removeAllBots()
 	setState("Phase", "Lobby")
 	setState("ModeId", "")
 	setState("ModeName", "")
@@ -234,7 +364,7 @@ local function runLobby(): string
 	for _, player in Players:GetPlayers() do
 		player.Neutral = true
 		player.Team = nil
-		task.spawn(spawnPlayer, player)
+		task.spawn(spawnEntity, player)
 	end
 
 	while true do
@@ -248,7 +378,7 @@ local function runLobby(): string
 		refreshVotes()
 		local enough = true
 		for t = MatchConfig.IntermissionTime, 1, -1 do
-			setState("Message", "Голосуйте за режим")
+			setState("Message", "Голосуйте за режим и выберите оружие")
 			setState("TimeLeft", t)
 			task.wait(1)
 			if #Players:GetPlayers() < minPlayers() then
@@ -265,8 +395,9 @@ end
 
 local function giveRewards(winner: string)
 	local R = Progression.Rewards
-	for player, stats in matchStats do
-		if player.Parent == Players and getTeamKey(player) then
+	for entity, stats in matchStats do
+		if not isBot(entity) and entity.Parent == Players and getTeamKey(entity) then
+			local player = entity :: Player
 			local won = getTeamKey(player) == winner
 			local xp = R.Play.XP + stats.kills * R.Kill.XP + (if won then R.Win.XP else 0)
 			local coins = R.Play.Coins + stats.kills * R.Kill.Coins + (if won then R.Win.Coins else 0)
@@ -304,6 +435,7 @@ local function runMatch(modeId: string)
 	setState("TimeLeft", def.Duration or 0)
 
 	mode = ModeClass.new(api, def)
+	rebalanceBots()
 	respawnAll()
 	mode:Start()
 
@@ -348,9 +480,10 @@ local function onPlayerAdded(player: Player)
 	end
 	if phase == "Match" and mode then
 		assignTeam(player)
-		spawnPlayer(player, not mode:OnPlayerAdded(player))
+		rebalanceBots() -- игрок заменяет бота в своей команде
+		spawnEntity(player, not mode:OnPlayerAdded(player))
 	else
-		spawnPlayer(player)
+		spawnEntity(player)
 	end
 end
 
@@ -379,13 +512,29 @@ function MatchService.start()
 		setState("ModeName_" .. id, ModesConfig.List[id].DisplayName)
 	end
 
-	WeaponService.setDamageFilter(function(attacker, victim)
-		if phase ~= "Match" then
-			return false
-		end
-		local a, v = getTeamKey(attacker), getTeamKey(victim)
-		return a ~= nil and v ~= nil and a ~= v and isAlive(victim)
-	end)
+	WeaponService.setHooks({
+		canDamage = function(attacker, victim)
+			if phase ~= "Match" then
+				return false
+			end
+			local a, v = getTeamKey(attacker), getTeamKey(victim)
+			return a ~= nil and v ~= nil and a ~= v and isAlive(victim)
+		end,
+		fromCharacter = entityFromCharacter,
+		idOf = entityId,
+	})
+
+	BotService.setHooks({
+		getEnemies = function(bot)
+			return getTeamMembers(otherTeam(bot.TeamKey))
+		end,
+		isAlive = isAlive,
+		getObjective = function(bot)
+			return if mode then mode:GetObjective(bot) else nil
+		end,
+		onDied = onDied,
+	})
+	BotService.start()
 
 	Net.get("VoteMode").OnServerEvent:Connect(function(player, modeId)
 		if phase ~= "Lobby" or typeof(modeId) ~= "string" or not ModesConfig.List[modeId] then
@@ -393,6 +542,13 @@ function MatchService.start()
 		end
 		votes[player] = modeId
 		refreshVotes()
+	end)
+
+	Net.get("SetInventoryItem").OnServerEvent:Connect(function(player, itemId, enabled)
+		if typeof(itemId) ~= "string" or typeof(enabled) ~= "boolean" then
+			return
+		end
+		DataService.setInventoryItem(player, itemId, enabled)
 	end)
 
 	Players.PlayerAdded:Connect(onPlayerAdded)
@@ -405,6 +561,8 @@ function MatchService.start()
 		if phase == "Lobby" then
 			refreshVotes()
 		end
+		-- Ушедшего игрока заменит бот (после того как игрок покинет список).
+		task.delay(0.5, rebalanceBots)
 	end)
 	for _, player in Players:GetPlayers() do
 		task.spawn(onPlayerAdded, player)
