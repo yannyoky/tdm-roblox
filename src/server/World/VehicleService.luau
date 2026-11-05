@@ -11,8 +11,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local VehiclesConfig = require(Shared.Config.Vehicles)
-local VehicleBuilder = require(script.Parent.Parent:WaitForChild("World"):WaitForChild("VehicleBuilder"))
-local MapService = require(script.Parent.MapService)
+local VehicleBuilder = require(script.Parent.VehicleBuilder)
+local MapService = require(script.Parent.Parent:WaitForChild("Services"):WaitForChild("MapService"))
 
 local VehicleService = {}
 
@@ -173,14 +173,18 @@ function VehicleService.isInVehicle(character: Model): boolean
 	return seat ~= nil and VehicleService.fromPart(seat) ~= nil
 end
 
-function VehicleService.damage(model: Model, amount: number, attacker: Player?)
+function VehicleService.damage(model: Model, amount: number, attacker: any)
 	if model:GetAttribute("Destroyed") or amount <= 0 then
 		return
 	end
-	if attacker and teamOf(attacker) == model:GetAttribute("Team") then
+	-- attacker: игрок или бот-таблица { IsBot = true, TeamKey = ... }
+	local attackerTeam = if attacker == nil then nil
+		elseif typeof(attacker) == "Instance" then teamOf(attacker :: Player)
+		else (attacker :: any).TeamKey
+	if attackerTeam and attackerTeam == model:GetAttribute("Team") then
 		return -- по своим машинам урона нет
 	end
-	if attacker then
+	if typeof(attacker) == "Instance" and attacker:IsA("Player") then
 		model:SetAttribute("LastAttacker", attacker.UserId)
 	end
 	local hp = (model:GetAttribute("Health") or 0) - amount

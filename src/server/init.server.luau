@@ -8,7 +8,7 @@ local WeaponService = require(Services.WeaponService)
 local ProgressionService = require(Services.ProgressionService)
 local LeaderboardService = require(Services.LeaderboardService)
 local MatchService = require(Services.MatchService)
-local VehicleService = require(Services.VehicleService)
+local VehicleService = require(script:WaitForChild("World"):WaitForChild("VehicleService"))
 
 PhysicsSetup.init()
 DataService.init()
