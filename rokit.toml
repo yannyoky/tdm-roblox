@@ -1,0 +1,4 @@
+# Инструменты проекта. Установка: `rokit install`
+[tools]
+rojo = "rojo-rbx/rojo@7.4.4"
+selene = "Kampfkarren/selene@0.27.1"
