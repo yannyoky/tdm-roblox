@@ -3,6 +3,13 @@
 -- Захват идёт, пока атакующих в зоне больше, чем защитников.
 local ModeBase = require(script.Parent.ModeBase)
 
+-- Транспорт (src/server/World/VehicleService), если он есть в проекте.
+local function getVehicleService()
+	local world = script.Parent.Parent:FindFirstChild("World")
+	local module = world and world:FindFirstChild("VehicleService")
+	return if module then require(module) :: any else nil
+end
+
 local GRACE_PERIOD = 3 -- секунд в начале раунда без проверки «все погибли» (игроки ещё появляются)
 
 local Capture = setmetatable({}, { __index = ModeBase })
@@ -56,9 +63,14 @@ function Capture:_inZone(player: Player): boolean
 	if not root then
 		return false
 	end
+	-- Сидящие в машине район не захватывают и не держат.
+	local vehicles = getVehicleService()
+	if vehicles and vehicles.isInVehicle and vehicles.isInVehicle(char) then
+		return false
+	end
 	local rel = self.zone.CFrame:PointToObjectSpace(root.Position)
 	local size = self.zone.Size
-	return math.abs(rel.X) <= size.X / 2 and math.abs(rel.Z) <= size.Z / 2 and rel.Y >= -2 and rel.Y <= 10
+	return math.abs(rel.X) <= size.X / 2 and math.abs(rel.Z) <= size.Z / 2 and rel.Y >= -2 and rel.Y <= 20 -- с запасом на крыши в зоне
 end
 
 -- Возвращает (живых в команде, из них в зоне).

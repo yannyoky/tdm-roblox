@@ -22,6 +22,13 @@ local hooks = {
 	end,
 }
 
+-- Транспорт (src/server/World/VehicleService) подключается, если он есть в проекте.
+local function getVehicleService()
+	local world = script.Parent.Parent:FindFirstChild("World")
+	local module = world and world:FindFirstChild("VehicleService")
+	return if module then require(module) :: any else nil
+end
+
 -- Активные облака дыма: { position, radius, untilTime }.
 local smokes = {}
 
@@ -84,6 +91,20 @@ local function explodeFrag(thrower, def, position: Vector3, grenade: BasePart)
 	boom.BlastPressure = 0
 	boom.DestroyJointRadiusPercent = 0
 	boom.Parent = workspace
+	-- Машины в радиусе взрыва.
+	local vehicles = getVehicleService()
+	if vehicles then
+		local damaged = {}
+		for _, part in workspace:GetPartBoundsInRadius(position, def.Radius) do
+			local vehicle = vehicles.fromPart(part)
+			if vehicle and not damaged[vehicle] then
+				damaged[vehicle] = true
+				local distance = (part.Position - position).Magnitude
+				vehicles.damage(vehicle, def.Damage * (1 - math.clamp(distance / def.Radius, 0, 1)) ^ 0.6, thrower)
+			end
+		end
+	end
+
 	for _, hit in charactersInBlast(position, def.Radius, { grenade }) do
 		local target = hooks.fromCharacter(hit.model)
 		if target and hooks.canDamage(thrower, target) then

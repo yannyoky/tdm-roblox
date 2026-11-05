@@ -20,6 +20,13 @@ local MAX_ORIGIN_OFFSET = 8 -- насколько точка выстрела м
 local FIRE_RATE_TOLERANCE = 0.8 -- запас на сетевые задержки
 local MAX_PENETRATIONS = 1
 
+-- Транспорт (src/server/World/VehicleService) подключается, если он есть в проекте.
+local function getVehicleService()
+	local world = script.Parent.Parent:FindFirstChild("World")
+	local module = world and world:FindFirstChild("VehicleService")
+	return if module then require(module) :: any else nil
+end
+
 local TORSO_PARTS = { UpperTorso = true, LowerTorso = true, Torso = true, HumanoidRootPart = true }
 
 local WeaponService = {}
@@ -184,6 +191,15 @@ local function traceBullet(shooter, char: Model, def, weaponId: string, origin: 
 					Net.get("HitMarker"):FireClient(shooter, isHead)
 				end
 			end
+			return result.Position, true
+		end
+
+		-- Попадание в машину: урон транспорту (дружественный огонь проверяет VehicleService).
+		local vehicles = getVehicleService()
+		local vehicle = vehicles and vehicles.fromPart(result.Instance)
+		if vehicle then
+			local damage = def.Damage * falloff(def, traveled) * damageMult
+			vehicles.damage(vehicle, damage, shooter)
 			return result.Position, true
 		end
 
