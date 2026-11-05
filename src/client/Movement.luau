@@ -67,6 +67,7 @@ local function updateSprint(dt: number)
 	local moving = hum.MoveDirection.Magnitude > 0.1
 	local canSprint = wantSprint and moving and not exhausted and not busy and hum.SeatPart == nil
 		and hum:GetState() ~= Enum.HumanoidStateType.Climbing and not char:GetAttribute("InLobby")
+		and not char:GetAttribute("Downed")
 
 	if canSprint then
 		stamina = math.max(0, stamina - SPRINT.Drain * dt)
@@ -203,7 +204,7 @@ local function tryParkour()
 		return
 	end
 	local char, hum, root = getParts()
-	if not char or hum.SeatPart or char:GetAttribute("InLobby") then
+	if not char or hum.SeatPart or char:GetAttribute("InLobby") or char:GetAttribute("Downed") then
 		return
 	end
 	local state = hum:GetState()

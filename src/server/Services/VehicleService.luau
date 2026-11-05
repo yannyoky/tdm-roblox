@@ -61,7 +61,7 @@ end
 local function humanoidOf(player: Player): Humanoid?
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	if hum and hum.Health > 0 and not char:GetAttribute("InLobby") then
+	if hum and hum.Health > 0 and not char:GetAttribute("InLobby") and not char:GetAttribute("Downed") then
 		return hum
 	end
 	return nil
@@ -378,6 +378,13 @@ local function tick()
 		local root = model.PrimaryPart
 		if not root then
 			continue
+		end
+		-- Раненых (лежат и ждут поднятия) высаживаем.
+		for _, seat in seatsOf(model) do
+			local hum = seat.Occupant
+			if hum and hum.Parent and hum.Parent:GetAttribute("Downed") then
+				eject(seat)
+			end
 		end
 		-- Упала с карты.
 		if root.Position.Y < -50 then
