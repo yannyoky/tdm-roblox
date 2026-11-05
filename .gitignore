@@ -1,0 +1,12 @@
+# Файлы мест Roblox
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+
+# Rojo / luau-lsp
+sourcemap.json
+
+# Системное
+.DS_Store
+Thumbs.db
