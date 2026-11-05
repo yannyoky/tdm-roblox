@@ -178,6 +178,7 @@ local function traceBullet(shooter, char: Model, def, weaponId: string, origin: 
 				local damage = def.Damage * mult * falloff(def, traveled) * damageMult
 				targetHum:SetAttribute("LastAttacker", hooks.idOf(shooter))
 				targetHum:SetAttribute("LastWeapon", weaponId)
+				targetHum:SetAttribute("LastHeadshot", isHead)
 				DamageService.apply(shooter, target, targetHum, damage, isHead)
 				if typeof(shooter) == "Instance" then
 					Net.get("HitMarker"):FireClient(shooter, isHead)

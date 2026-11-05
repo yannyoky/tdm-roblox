@@ -20,6 +20,7 @@ local hooks = {
 		return DOWNED.Enabled
 	end,
 	onDowned = function(_victim, _attacker) end,
+	onRevive = function(_rescuer, _victim) end,
 }
 
 function DamageService.setHooks(newHooks)
@@ -45,7 +46,8 @@ local function removePrompt(char: Model)
 	end
 end
 
-function DamageService.revive(hum: Humanoid)
+-- Поднять раненого. rescuer — кто поднял (игрок или бот), для заданий.
+function DamageService.revive(hum: Humanoid, rescuer)
 	local char = hum.Parent :: Model
 	if not char or not DamageService.isDowned(char) or hum.Health <= 0 then
 		return
@@ -57,6 +59,9 @@ function DamageService.revive(hum: Humanoid)
 	hum.WalkSpeed = char:GetAttribute("NormalWalkSpeed") or 16
 	hum.JumpPower = char:GetAttribute("NormalJumpPower") or 50
 	hum.JumpHeight = char:GetAttribute("NormalJumpHeight") or 7.2
+	if rescuer then
+		hooks.onRevive(rescuer, hooks.fromCharacter(char))
+	end
 end
 
 local function down(hum: Humanoid, victim, attacker)
@@ -91,7 +96,7 @@ local function down(hum: Humanoid, victim, attacker)
 				and rescuerHum and rescuerHum.Health > 0
 				and not DamageService.isDowned(rescuerChar)
 			then
-				DamageService.revive(hum)
+				DamageService.revive(hum, rescuer)
 			end
 		end)
 		prompt.Parent = root

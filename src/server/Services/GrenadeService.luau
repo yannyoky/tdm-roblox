@@ -90,6 +90,7 @@ local function explodeFrag(thrower, def, position: Vector3, grenade: BasePart)
 			local damage = def.Damage * (1 - math.clamp(hit.distance / def.Radius, 0, 1)) ^ 0.6
 			hit.hum:SetAttribute("LastAttacker", hooks.idOf(thrower))
 			hit.hum:SetAttribute("LastWeapon", def.Id)
+			hit.hum:SetAttribute("LastHeadshot", false)
 			DamageService.apply(thrower, target, hit.hum, damage, false)
 		end
 	end

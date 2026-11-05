@@ -232,7 +232,8 @@ function Hud.init()
 	local function refreshPlayer()
 		local key = if player.Team and not player.Neutral then player.Team:GetAttribute("Key") else nil
 		if key and Teams.List[key] then
-			teamLabel.Text = "Вы: " .. Teams.List[key].Name
+			local rank = player:GetAttribute("Rank_" .. key)
+			teamLabel.Text = "Вы: " .. Teams.List[key].Name .. (if rank then " • " .. rank else "")
 			teamLabel.TextColor3 = Teams.List[key].Color
 		else
 			teamLabel.Text = "Лобби"

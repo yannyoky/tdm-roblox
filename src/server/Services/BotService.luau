@@ -363,7 +363,7 @@ local function think(bot, dt: number)
 				bot.reviveTime = 0
 				local ahum = achar:FindFirstChildOfClass("Humanoid")
 				if ahum then
-					DamageService.revive(ahum)
+					DamageService.revive(ahum, bot)
 				end
 			end
 		else

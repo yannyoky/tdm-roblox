@@ -23,6 +23,15 @@ local DEFAULT_DATA = {
 	XPBoostUntil = 0, -- os.time(), до которого действует буст опыта
 	Purchases = {}, -- последние PurchaseId, чтобы не выдать покупку дважды
 	Inventory = { "Rifle", "Pistol", "Knife" }, -- что игрок берёт в бой (любое открытое, без ограничений)
+	Headshots = 0,
+	Revives = 0,
+	FactionXP = { Bandits = 0, Gov = 0 }, -- опыт для званий каждой стороны
+	Daily = { Day = 0, Quests = {} }, -- ежедневные задания: { Id, Progress, Done }
+	Season = { Id = "", XP = 0, ClaimedFree = 0, ClaimedPremium = 0 },
+	Titles = {}, -- полученные титулы
+	Title = "", -- выбранный титул
+	Rating = 1000,
+	RatedMatches = 0,
 }
 
 type Profile = { data: { [string]: any }, canSave: boolean }
@@ -129,6 +138,11 @@ end
 function DataService.get(player: Player): { [string]: any }?
 	local profile = profiles[player]
 	return if profile then profile.data else nil
+end
+
+-- Для ProgressionService: обновить leaderstats и атрибуты после изменения данных.
+function DataService.refresh(player: Player)
+	refreshStats(player)
 end
 
 function DataService.save(player: Player): boolean

@@ -14,6 +14,8 @@ local ModesConfig = require(Shared.Config.Modes)
 local TeamsConfig = require(Shared.Config.Teams)
 local BotsConfig = require(Shared.Config.Bots)
 local Combat = require(Shared.Config.Combat)
+local Weapons = require(Shared.Config.Weapons)
+local Meta = require(Shared.Config.Meta)
 local Progression = require(Shared.Config.Progression)
 local Net = require(Shared.Net)
 
@@ -26,6 +28,7 @@ local MapService = require(Services.MapService)
 local BotService = require(Services.BotService)
 local PhysicsSetup = require(Services.PhysicsSetup)
 local DamageService = require(Services.DamageService)
+local ProgressionService = require(Services.ProgressionService)
 
 local MatchConfig = ModesConfig.Match
 local TEAM_KEYS = TeamsConfig.Order
@@ -152,8 +155,13 @@ local function spawnEntity(entity, forceLobby: boolean?)
 	if isBot(entity) then
 		if phase == "Match" and key and not forceLobby then
 			BotService.spawn(entity, pickSpawn(key), MatchConfig.SpawnProtection)
-			if entity.Character and math.random() < 0.5 then
-				DamageService.giveArmor(entity.Character)
+			if entity.Character then
+				if math.random() < 0.5 then
+					DamageService.giveArmor(entity.Character)
+				end
+				local ranks = Meta.Ranks[key]
+				entity.RankName = entity.RankName or ranks[math.random(#ranks)].Name
+				ProgressionService.attachNameTag(entity.Character, entity.DisplayName, entity.RankName, TeamsConfig.List[key].Color)
 			end
 		else
 			BotService.despawn(entity)
@@ -180,6 +188,12 @@ local function spawnEntity(entity, forceLobby: boolean?)
 		if table.find(inventory, "Armor") then
 			DamageService.giveArmor(char)
 		end
+		local subtitle = ProgressionService.rankName(player, key :: string)
+		local title = player:GetAttribute("Title")
+		if title and title ~= "" then
+			subtitle ..= " • " .. title
+		end
+		ProgressionService.attachNameTag(char, player.DisplayName, subtitle, TeamsConfig.List[key :: string].Color)
 		local shield = Instance.new("ForceField")
 		shield.Parent = char
 		task.delay(MatchConfig.SpawnProtection, function()
@@ -250,6 +264,12 @@ local api = {
 	isBot = isBot,
 	otherTeam = otherTeam,
 	respawnAll = respawnAll,
+	-- Команда выиграла раунд (капт): засчитываем задания её игрокам.
+	onRoundWon = function(key: string)
+		for _, player in getTeamHumans(key) do
+			ProgressionService.record(player, "CaptureRound")
+		end
+	end,
 	setState = function(name: string, value: any)
 		setState(name, value)
 	end,
@@ -278,6 +298,16 @@ local function onDied(entity, hum: Humanoid)
 			local stats = matchStats[killer]
 			if stats then
 				stats.kills += 1
+			end
+			if not isBot(killer) then
+				ProgressionService.record(killer, "Kill")
+				if hum:GetAttribute("LastHeadshot") then
+					ProgressionService.record(killer, "Headshot")
+				end
+				local weaponDef = weaponId and Weapons.List[weaponId]
+				if weaponDef and weaponDef.Kind == "Grenade" then
+					ProgressionService.record(killer, "GrenadeKill")
+				end
 			end
 		end
 		mode:OnPlayerKilled(entity, killer)
@@ -410,6 +440,12 @@ end
 
 local function giveRewards(winner: string)
 	local R = Progression.Rewards
+	local humansByTeam = {}
+	for _, key in TEAM_KEYS do
+		humansByTeam[key] = getTeamHumans(key)
+	end
+	ProgressionService.updateRatings(humansByTeam, winner)
+
 	for entity, stats in matchStats do
 		if not isBot(entity) and entity.Parent == Players and getTeamKey(entity) then
 			local player = entity :: Player
@@ -417,10 +453,18 @@ local function giveRewards(winner: string)
 			local xp = R.Play.XP + stats.kills * R.Kill.XP + (if won then R.Win.XP else 0)
 			local coins = R.Play.Coins + stats.kills * R.Kill.Coins + (if won then R.Win.Coins else 0)
 			local xpMult, coinMult = ShopService.getMultipliers(player)
-			DataService.addReward(player, math.floor(xp * xpMult), math.floor(coins * coinMult), {
+			local finalXp = math.floor(xp * xpMult)
+			DataService.addReward(player, finalXp, math.floor(coins * coinMult), {
 				kills = stats.kills,
 				won = won,
 			})
+			ProgressionService.addFactionXP(player, getTeamKey(player) :: string, finalXp)
+			ProgressionService.addSeasonXP(player, finalXp)
+			ProgressionService.record(player, "Match")
+			if won then
+				ProgressionService.record(player, "Win")
+			end
+			ProgressionService.publish(player)
 		end
 	end
 end
@@ -542,6 +586,11 @@ function MatchService.start()
 	DamageService.setHooks({
 		getTeamKey = getTeamKey,
 		fromCharacter = entityFromCharacter,
+		onRevive = function(rescuer)
+			if rescuer and not isBot(rescuer) then
+				ProgressionService.record(rescuer, "Revive")
+			end
+		end,
 		downedAllowed = function()
 			return phase == "Match" and mode ~= nil and Combat.Downed.Enabled and mode.def.DownedEnabled ~= false
 		end,

@@ -8,6 +8,9 @@ return {
 			XpMultiplier = 1.25,
 			CoinMultiplier = 1.25,
 		},
+		SeasonPass = {
+			Id = 0, -- 399 R$, премиум-дорожка сезонного пропуска
+		},
 	},
 
 	Products = {

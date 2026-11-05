@@ -76,6 +76,9 @@ function Capture:_count(team: string): (number, number)
 end
 
 function Capture:_endRound(team: string, reason: string)
+	if self.api.onRoundWon then
+		self.api.onRoundWon(team)
+	end
 	self.score[team] += 1
 	self:PushScore()
 	self.api.setState("Message", string.format("Раунд за командой «%s»: %s", self.api.teamName(team), reason))
