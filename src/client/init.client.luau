@@ -1,0 +1,16 @@
+-- Точка входа клиента.
+local Hud = require(script:WaitForChild("Hud"))
+local WeaponController = require(script:WaitForChild("WeaponController"))
+local InventoryMenu = require(script:WaitForChild("InventoryMenu"))
+local CombatFx = require(script:WaitForChild("CombatFx"))
+local ProgressMenu = require(script:WaitForChild("ProgressMenu"))
+local Movement = require(script:WaitForChild("Movement"))
+local VehicleController = require(script:WaitForChild("VehicleController"))
+
+task.spawn(WeaponController.init)
+task.spawn(Hud.init)
+task.spawn(InventoryMenu.init)
+task.spawn(CombatFx.init)
+task.spawn(ProgressMenu.init)
+task.spawn(Movement.init)
+task.spawn(VehicleController.init)
