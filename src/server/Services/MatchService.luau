@@ -25,6 +25,7 @@ local DataService = require(Services.DataService)
 local ShopService = require(Services.ShopService)
 local WeaponService = require(Services.WeaponService)
 local MapService = require(Services.MapService)
+local VehicleService = require(Services.Parent:WaitForChild("World"):WaitForChild("VehicleService"))
 local BotService = require(Services.BotService)
 local PhysicsSetup = require(Services.PhysicsSetup)
 local DamageService = require(Services.DamageService)
@@ -138,6 +139,9 @@ end
 
 -- Точка появления. Сюда подключается MapService с отдельными базами команд.
 local function pickSpawn(folderName: string): CFrame
+	if folderName ~= "Lobby" then
+		folderName = MapService.spawnFolder(folderName, mode and mode.def)
+	end
 	local spawns = map:FindFirstChild("Spawns")
 	local folder = spawns and spawns:FindFirstChild(folderName)
 	local list = if folder then folder:GetChildren() else {}
@@ -205,6 +209,7 @@ local function spawnEntity(entity, forceLobby: boolean?)
 end
 
 local function respawnAll()
+	VehicleService.resetFleet() -- каждый раунд машины снова стоят на базах
 	for _, key in TEAM_KEYS do
 		for _, entity in getTeamMembers(key) do
 			task.spawn(spawnEntity, entity)
@@ -492,6 +497,10 @@ local function runMatch(modeId: string)
 	setState("ModeId", modeId)
 	setState("ModeName", def.DisplayName)
 	setState("TimeLeft", def.Duration or 0)
+
+	-- Ротация карт: каждый матч на следующей карте.
+	map = MapService.nextMap()
+	api.map = map
 
 	mode = ModeClass.new(api, def)
 	rebalanceBots()
