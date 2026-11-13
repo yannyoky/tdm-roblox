@@ -69,9 +69,26 @@ function PlayerSettings.onChanged(fn: (key: string, value: any) -> ())
 end
 
 -- WeaponController сообщает, когда игрок смотрит в прицел.
+local aimListeners: { (on: boolean) -> () } = {}
+
 function PlayerSettings.setAiming(on: boolean)
+	local changed = aiming ~= on
 	aiming = on
 	applySensitivity()
+	if changed then
+		for _, fn in aimListeners do
+			task.spawn(fn, on)
+		end
+	end
+end
+
+-- fn(on) вызывается, когда игрок входит в прицел или выходит из него.
+function PlayerSettings.onAimingChanged(fn: (on: boolean) -> ())
+	table.insert(aimListeners, fn)
+end
+
+function PlayerSettings.isAiming(): boolean
+	return aiming
 end
 
 function PlayerSettings.init()

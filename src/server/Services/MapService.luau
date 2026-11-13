@@ -32,6 +32,7 @@ local function setCurrent(map: Folder)
 	current = map
 	map.Parent = workspace
 	ReplicatedStorage:SetAttribute("MapName", map:GetAttribute("MapName") or map.Name)
+	ReplicatedStorage:SetAttribute("MapId", map:GetAttribute("MapId") or "")
 	changed:Fire(map)
 end
 
