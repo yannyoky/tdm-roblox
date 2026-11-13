@@ -30,6 +30,8 @@ local BotService = require(Services.BotService)
 local PhysicsSetup = require(Services.PhysicsSetup)
 local DamageService = require(Services.DamageService)
 local ProgressionService = require(Services.ProgressionService)
+local SkinService = require(Services.SkinService)
+local HttpService = game:GetService("HttpService")
 
 local MatchConfig = ModesConfig.Match
 local TEAM_KEYS = TeamsConfig.Order
@@ -42,7 +44,7 @@ local teams: { [string]: Team } = {}
 local phase = "Lobby" -- Lobby | Match | Results
 local mode = nil
 local votes: { [Player]: string } = {}
-local matchStats = {} -- [боец] = { kills = n }
+local matchStats = {} -- [боец] = { kills = n, deaths = n }
 
 local function setState(name: string, value: any)
 	state:SetAttribute(name, value)
@@ -137,6 +139,41 @@ local function entityFromCharacter(model: Model)
 	return Players:GetPlayerFromCharacter(model) or BotService.fromCharacter(model)
 end
 
+local function newStats()
+	return { kills = 0, deaths = 0 }
+end
+
+-- Таблица игроков для HUD (Tab и экран итогов): JSON в MatchState.Scoreboard.
+local function publishScoreboard()
+	local rows = {}
+	for entity, stats in matchStats do
+		local key = getTeamKey(entity)
+		if key and (isBot(entity) or entity.Parent == Players) then
+			table.insert(rows, {
+				n = entity.DisplayName,
+				t = key,
+				k = stats.kills,
+				d = stats.deaths,
+				b = isBot(entity),
+				u = if isBot(entity) then 0 else entity.UserId,
+				l = if isBot(entity) then nil else entity:GetAttribute("Level"),
+			})
+		end
+	end
+	setState("Scoreboard", HttpService:JSONEncode(rows))
+end
+
+-- Игроки, которые нажали «Играть» в главном меню.
+local function readyPlayers(): { Player }
+	local list = {}
+	for _, player in Players:GetPlayers() do
+		if player:GetAttribute("Ready") then
+			table.insert(list, player)
+		end
+	end
+	return list
+end
+
 -- Точка появления. Сюда подключается MapService с отдельными базами команд.
 local function pickSpawn(folderName: string): CFrame
 	if folderName ~= "Lobby" then
@@ -192,6 +229,7 @@ local function spawnEntity(entity, forceLobby: boolean?)
 		if table.find(inventory, "Armor") then
 			DamageService.giveArmor(char)
 		end
+		SkinService.applyToPlayer(player, char, key :: string)
 		local subtitle = ProgressionService.rankName(player, key :: string)
 		local title = player:GetAttribute("Title")
 		if title and title ~= "" then
@@ -217,17 +255,24 @@ local function respawnAll()
 	end
 end
 
+-- Команда для игрока: выбранная в меню, если она не больше другой, иначе меньшая.
 local function assignTeam(player: Player): string
 	local countA, countB = #getTeamHumans(TEAM_KEYS[1]), #getTeamHumans(TEAM_KEYS[2])
+	local preferred = player:GetAttribute("PreferredTeam")
 	local key
-	if countA == countB then
+	if preferred == TEAM_KEYS[1] and countA <= countB then
+		key = TEAM_KEYS[1]
+	elseif preferred == TEAM_KEYS[2] and countB <= countA then
+		key = TEAM_KEYS[2]
+	elseif countA == countB then
 		key = TEAM_KEYS[math.random(2)]
 	else
 		key = if countA < countB then TEAM_KEYS[1] else TEAM_KEYS[2]
 	end
 	player.Neutral = false
 	player.Team = teams[key]
-	matchStats[player] = matchStats[player] or { kills = 0 }
+	matchStats[player] = matchStats[player] or newStats()
+	publishScoreboard()
 	return key
 end
 
@@ -243,9 +288,10 @@ local function rebalanceBots()
 			matchStats[teamBots[i]] = nil
 			BotService.remove(teamBots[i])
 		end
+		publishScoreboard()
 		for _ = #teamBots + 1, desired do
 			local bot = BotService.create(key)
-			matchStats[bot] = { kills = 0 }
+			matchStats[bot] = newStats()
 			if mode:OnPlayerAdded(bot) then
 				task.spawn(spawnEntity, bot)
 			end
@@ -299,6 +345,9 @@ local function onDied(entity, hum: Humanoid)
 
 	if phase == "Match" and mode and not inLobby then
 		Net.get("KillFeed"):FireAllClients(if killer then killer.DisplayName else nil, entity.DisplayName, weaponId)
+		if matchStats[entity] then
+			matchStats[entity].deaths += 1
+		end
 		if killer and killer ~= entity and getTeamKey(killer) ~= getTeamKey(entity) then
 			local stats = matchStats[killer]
 			if stats then
@@ -316,6 +365,7 @@ local function onDied(entity, hum: Humanoid)
 			end
 		end
 		mode:OnPlayerKilled(entity, killer)
+		publishScoreboard()
 	end
 
 	if isBot(entity) then
@@ -335,6 +385,17 @@ local function onDied(entity, hum: Humanoid)
 
 	local player = entity :: Player
 	if phase == "Match" and mode and not inLobby then
+		-- Экран смерти: кто убил, чем, сколько у него осталось здоровья и когда возрождение.
+		local killerChar = if killer and killer ~= entity then killer.Character else nil
+		local killerHum = killerChar and killerChar:FindFirstChildOfClass("Humanoid")
+		Net.get("Died"):FireClient(
+			player,
+			if killer and killer ~= entity then killer.DisplayName else nil,
+			weaponId,
+			if mode:CanRespawn(player) then mode:GetRespawnDelay() else nil,
+			if killerHum then math.ceil(killerHum.Health) else nil,
+			killerChar
+		)
 		if mode:CanRespawn(player) then
 			task.delay(mode:GetRespawnDelay(), function()
 				if phase == "Match" and player.Character == char and getTeamKey(player) then
@@ -411,6 +472,7 @@ local function runLobby(): string
 	setState("ScoreB", 0)
 	setState("CaptureProgress", 0)
 	setState("Winner", "")
+	setState("Scoreboard", "[]")
 	for _, player in Players:GetPlayers() do
 		player.Neutral = true
 		player.Team = nil
@@ -418,8 +480,8 @@ local function runLobby(): string
 	end
 
 	while true do
-		while #Players:GetPlayers() < minPlayers() do
-			setState("Message", string.format("Ждём игроков: %d/%d", #Players:GetPlayers(), minPlayers()))
+		while #readyPlayers() < minPlayers() do
+			setState("Message", string.format("Ждём игроков: %d/%d", #readyPlayers(), minPlayers()))
 			setState("TimeLeft", 0)
 			task.wait(1)
 		end
@@ -431,7 +493,7 @@ local function runLobby(): string
 			setState("Message", "Голосуйте за режим и выберите оружие")
 			setState("TimeLeft", t)
 			task.wait(1)
-			if #Players:GetPlayers() < minPlayers() then
+			if #readyPlayers() < minPlayers() then
 				enough = false
 				break
 			end
@@ -445,6 +507,14 @@ end
 
 local function giveRewards(winner: string)
 	local R = Progression.Rewards
+	-- Лучший игрок матча: больше всех убийств, при равенстве меньше смертей.
+	local mvp, best = nil, nil
+	for entity, stats in matchStats do
+		if getTeamKey(entity) and (not best or stats.kills > best.kills or (stats.kills == best.kills and stats.deaths < best.deaths)) then
+			mvp, best = entity, stats
+		end
+	end
+	setState("MVP", if mvp and best and best.kills > 0 then string.format("%s — %d/%d", mvp.DisplayName, best.kills, best.deaths) else "")
 	local humansByTeam = {}
 	for _, key in TEAM_KEYS do
 		humansByTeam[key] = getTeamHumans(key)
@@ -463,6 +533,14 @@ local function giveRewards(winner: string)
 				kills = stats.kills,
 				won = won,
 			})
+			player:SetAttribute("LastMatch", HttpService:JSONEncode({
+				xp = finalXp,
+				coins = math.floor(coins * coinMult),
+				kills = stats.kills,
+				deaths = stats.deaths,
+				won = won,
+				draw = winner == "Draw",
+			}))
 			ProgressionService.addFactionXP(player, getTeamKey(player) :: string, finalXp)
 			ProgressionService.addSeasonXP(player, finalXp)
 			ProgressionService.record(player, "Match")
@@ -479,17 +557,27 @@ local function runMatch(modeId: string)
 	local ModeClass = require(ModesFolder:FindFirstChild(def.Module))
 
 	table.clear(matchStats)
-	local list = Players:GetPlayers()
+	setState("Scoreboard", "[]")
+	setState("MVP", "")
+	local list = readyPlayers()
 	for i = #list, 2, -1 do
 		local j = math.random(i)
 		list[i], list[j] = list[j], list[i]
 	end
-	for _, player in list do
+	for _, player in Players:GetPlayers() do
 		player.Neutral = true
 		player.Team = nil
 	end
+	-- Сначала те, кто выбрал сторону, потом остальные заполняют меньшую команду.
 	for _, player in list do
-		assignTeam(player)
+		if player:GetAttribute("PreferredTeam") ~= "Any" then
+			assignTeam(player)
+		end
+	end
+	for _, player in list do
+		if not player.Team then
+			assignTeam(player)
+		end
 	end
 
 	phase = "Match"
@@ -524,7 +612,7 @@ local function runMatch(modeId: string)
 				winner = mode:GetTimeoutWinner()
 			end
 		end
-		if not winner and #Players:GetPlayers() == 0 then
+		if not winner and #readyPlayers() == 0 then
 			winner = "Draw"
 		end
 	end
@@ -546,12 +634,24 @@ local function onPlayerAdded(player: Player)
 	if player.Character then
 		task.spawn(onCharacterAdded, player, player.Character)
 	end
-	if phase == "Match" and mode then
+	-- В бой игрок попадает после кнопки «Играть» в главном меню, до этого стоит в лобби.
+	spawnEntity(player, true)
+end
+
+-- Игрок нажал «Играть»: запоминаем сторону и, если матч уже идёт, сразу отправляем в бой.
+local function onPlay(player: Player, preferred: any)
+	if preferred ~= TEAM_KEYS[1] and preferred ~= TEAM_KEYS[2] then
+		preferred = "Any"
+	end
+	player:SetAttribute("PreferredTeam", preferred)
+	if player:GetAttribute("Ready") then
+		return
+	end
+	player:SetAttribute("Ready", true)
+	if phase == "Match" and mode and not getTeamKey(player) then
 		assignTeam(player)
 		rebalanceBots() -- игрок заменяет бота в своей команде
 		spawnEntity(player, not mode:OnPlayerAdded(player))
-	else
-		spawnEntity(player)
 	end
 end
 
@@ -628,6 +728,11 @@ function MatchService.start()
 		refreshVotes()
 	end)
 
+	Net.get("Play").OnServerEvent:Connect(onPlay)
+	Net.get("SaveSettings").OnServerEvent:Connect(function(player, settings)
+		DataService.setSettings(player, settings)
+	end)
+
 	Net.get("SetInventoryItem").OnServerEvent:Connect(function(player, itemId, enabled)
 		if typeof(itemId) ~= "string" or typeof(enabled) ~= "boolean" then
 			return
@@ -639,6 +744,7 @@ function MatchService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		votes[player] = nil
 		matchStats[player] = nil
+		task.defer(publishScoreboard)
 		if mode then
 			mode:OnPlayerRemoved(player)
 		end

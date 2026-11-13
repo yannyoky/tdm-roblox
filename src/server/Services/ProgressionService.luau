@@ -11,6 +11,7 @@ local TeamsConfig = require(Shared.Config.Teams)
 
 local DataService = require(script.Parent.DataService)
 local ShopService = require(script.Parent.ShopService)
+local SkinService = require(script.Parent.SkinService)
 
 local ProgressionService = {}
 
@@ -121,6 +122,7 @@ function ProgressionService.publish(player: Player)
 	player:SetAttribute("Division", Meta.divisionFor(data.Rating))
 	player:SetAttribute("Title", data.Title)
 	DataService.refresh(player)
+	SkinService.publish(player)
 end
 
 function ProgressionService.addSeasonXP(player: Player, xp: number)

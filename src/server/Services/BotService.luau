@@ -12,6 +12,7 @@ local Weapons = require(Shared.Config.Weapons)
 
 local WeaponService = require(script.Parent.WeaponService)
 local PhysicsSetup = require(script.Parent.PhysicsSetup)
+local SkinService = require(script.Parent.SkinService)
 local DamageService = require(script.Parent.DamageService)
 local GrenadeService = require(script.Parent.GrenadeService)
 local Combat = require(Shared.Config.Combat)
@@ -122,6 +123,7 @@ local function buildCharacter(bot): Model
 	desc.LeftLegColor = color:Lerp(Color3.new(0, 0, 0), 0.5)
 	desc.RightLegColor = desc.LeftLegColor
 	local model = Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
+	SkinService.applyToBot(model, bot.TeamKey)
 	model.Name = bot.DisplayName
 	model:SetAttribute("BotId", bot.Id)
 	model:SetAttribute("TeamKey", bot.TeamKey)

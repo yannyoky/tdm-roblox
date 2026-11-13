@@ -9,6 +9,7 @@ local Debris = game:GetService("Debris")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Weapons = require(Shared.Config.Weapons)
 local Net = require(Shared.Net)
+local PlayerSettings = require(script.Parent.PlayerSettings)
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
@@ -149,8 +150,17 @@ function WeaponController.init()
 
 	-- Прицел снайперской винтовки: правая кнопка мыши (или кнопка на экране) приближает.
 	local camera = workspace.CurrentCamera
-	local normalFov = camera.FieldOfView
+	local normalFov = PlayerSettings.get("FieldOfView")
 	local zoomed = false
+	camera.FieldOfView = normalFov
+	PlayerSettings.onChanged(function(key, value)
+		if key == "FieldOfView" then
+			normalFov = value
+			if not zoomed then
+				camera.FieldOfView = value
+			end
+		end
+	end)
 	local function setZoom(on: boolean)
 		local _, def = currentDef()
 		on = on and def ~= nil and def.Zoom ~= nil
@@ -159,6 +169,7 @@ function WeaponController.init()
 		end
 		zoomed = on
 		camera.FieldOfView = if on then def.Zoom else normalFov
+		PlayerSettings.setAiming(on)
 	end
 	ContextActionService:BindAction("Aim", function(_, inputState)
 		if inputState == Enum.UserInputState.Begin then
