@@ -77,12 +77,42 @@ local function ensure(className: string, parent: Instance): any
 	return inst
 end
 
+-- Для каждого материала: вариант с именем из Config.MaterialOverrides, а если такого нет —
+-- первый попавшийся MaterialVariant с тем же BaseMaterial (так работает любой пак из Toolbox,
+-- который просто вставили в MaterialService).
+local function findVariant(material: Enum.Material, preferred: string?): string?
+	if preferred then
+		local v = MaterialService:FindFirstChild(preferred, true)
+		if v and v:IsA("MaterialVariant") and v.BaseMaterial == material then
+			return v.Name
+		end
+	end
+	if Config.AutoPickMaterialVariants then
+		for _, v in MaterialService:GetDescendants() do
+			if v:IsA("MaterialVariant") and v.BaseMaterial == material then
+				return v.Name
+			end
+		end
+	end
+	return nil
+end
+
 local function setMaterialOverrides(on: boolean)
-	for material, variantName in Config.MaterialOverrides do
-		local variant = MaterialService:FindFirstChild(variantName, true)
-		local valid = variant and variant:IsA("MaterialVariant") and variant.BaseMaterial == material
+	local materials = {}
+	for material, name in Config.MaterialOverrides do
+		materials[material] = name
+	end
+	if Config.AutoPickMaterialVariants then
+		for _, v in MaterialService:GetDescendants() do
+			if v:IsA("MaterialVariant") and materials[v.BaseMaterial] == nil then
+				materials[v.BaseMaterial] = false
+			end
+		end
+	end
+	for material, preferred in materials do
+		local name = if on then findVariant(material, preferred or nil) else nil
 		pcall(function()
-			MaterialService:SetBaseMaterialOverride(material, if on and valid then variantName else "")
+			MaterialService:SetBaseMaterialOverride(material, name or "")
 		end)
 	end
 end

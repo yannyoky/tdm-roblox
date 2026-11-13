@@ -16,6 +16,10 @@ local Graphics = {}
 -- Свои PBR-материалы. Создайте в MaterialService объект MaterialVariant с таким именем
 -- (BaseMaterial = ключ слева, текстуры ColorMap/NormalMap/RoughnessMap/MetalnessMap),
 -- и все детали этого материала в игре станут им. Нет варианта — остаётся стандартный материал.
+-- Если варианта с таким именем нет, берётся любой MaterialVariant из MaterialService с тем же
+-- BaseMaterial. Так бесплатный пак материалов из Toolbox работает сразу, без переименования.
+Graphics.AutoPickMaterialVariants = true
+
 Graphics.MaterialOverrides = {
 	[Enum.Material.Concrete] = "Real_Concrete",
 	[Enum.Material.Brick] = "Real_Brick",
@@ -33,6 +37,36 @@ Graphics.MaterialOverrides = {
 Graphics.TerrainGround = true
 -- Травинки на Terrain Grass. Низкие, но немного прячут ползущих раненых.
 Graphics.GrassDecoration = true
+
+-- Отделка карты (World/Detailer.luau): окна, карнизы, двери, рёбра контейнеров, тротуары и т. д.
+Graphics.Detail = true
+
+-- Тротуары с бордюром вдоль дорог (твёрдые, высота как у ступеньки) и разметка.
+Graphics.Sidewalks = {
+	Enabled = true,
+	Width = 3,
+	Height = 0.35,
+	Color = rgb(150, 148, 142),
+	CurbColor = rgb(185, 183, 176),
+}
+Graphics.RoadMarkings = true
+
+-- Готовые модели (бесплатные из Toolbox или свои из Blender) кладутся в ServerStorage/RealisticModels:
+--   Container, Crate, StreetLamp -- модель (или папка с несколькими моделями) заменяет процедурную
+--   Trees, Bushes, Clutter       -- папки с моделями, они расставляются по карте (числа ниже)
+-- Нет папки или модели — остаётся процедурная отделка.
+Graphics.ScatterSlots = {
+	Trees = { Height = { 18, 30 }, Clearance = 6, Collider = 2 },
+	Bushes = { Height = { 3, 5 }, Clearance = 3 }, -- сквозь кусты можно пройти и прострелить
+	Clutter = { Height = { 3, 5 }, Clearance = 3, Solid = true }, -- бочки, баки, поддоны: укрытие
+}
+Graphics.Scatter = {
+	Default = { Trees = 20, Bushes = 20, Clutter = 20 },
+	Industrial = { Trees = 10, Bushes = 15, Clutter = 60 },
+	Suburb = { Trees = 60, Bushes = 50, Clutter = 30 },
+	Port = { Trees = 5, Bushes = 10, Clutter = 60 },
+	Village = { Trees = 90, Bushes = 70, Clutter = 20 },
+}
 
 -- Фонари вдоль дорог.
 Graphics.StreetLamps = {

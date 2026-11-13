@@ -11,10 +11,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config.Graphics)
 local MapsConfig = require(Shared.Config.Maps)
+local MapBuilder = require(script.Parent.MapBuilder)
+local Detailer = require(script.Parent.Detailer)
 
 local LIGHT_TAG = "RealismLight"
 
 local Realism = {}
+
+-- Отделка каждого элемента прямо во время сборки карты.
+if Config.Detail then
+	MapBuilder.decorate = Detailer.element
+end
 
 local function make(className: string, props: { [string]: any }, parent: Instance?): any
 	local inst = Instance.new(className)
@@ -107,9 +114,37 @@ local function insideOtherRoad(pos: Vector3, road: BasePart, roads: { BasePart }
 	return false
 end
 
+local lampRng = Random.new(7)
+
 local function lamp(geo: Instance, base: CFrame, lampsOn: boolean)
 	local cfg = Config.StreetLamps
 	local H = cfg.Height
+	-- Своя модель фонаря из ServerStorage/RealisticModels/StreetLamp (плафон по оси -X модели).
+	local template = Detailer.pickModel("StreetLamp", lampRng)
+	if template then
+		local m = Detailer.placeModel(template, base, geo, Vector3.new(0, H, 0), true)
+		local lights = {}
+		for _, d in m:GetDescendants() do
+			if d:IsA("Light") then
+				table.insert(lights, d)
+			end
+		end
+		if #lights == 0 then
+			local top: BasePart? = nil
+			for _, d in m:GetDescendants() do
+				if d:IsA("BasePart") and (not top or d.Position.Y > top.Position.Y) then
+					top = d
+				end
+			end
+			if top then
+				table.insert(lights, make("SpotLight", { Face = Enum.NormalId.Bottom, Angle = 110, Brightness = cfg.Brightness, Range = cfg.Range, Color = cfg.Color, Shadows = false }, top))
+			end
+		end
+		for _, light in lights do
+			tagLight(light, lampsOn)
+		end
+		return
+	end
 	local dark = Color3.fromRGB(45, 47, 50)
 	local model = make("Model", { Name = "StreetLamp" }, geo)
 	make("Part", { Name = "Pole", Size = Vector3.new(0.5, H, 0.5), CFrame = base * CFrame.new(0, H / 2, 0), Color = dark, Material = Enum.Material.Metal }, model)
@@ -237,6 +272,19 @@ local function onMap(map: Instance)
 	local mood = Config.Moods[mapId] or Config.Moods.Default
 	local t = os.clock()
 	-- Каждый шаг в pcall: если что-то пойдёт не так, игра просто останется без украшения.
+	-- Порядок важен: тротуары и деревья до Terrain (под ними не будет травы), фонари после тротуаров.
+	if Config.Detail then
+		for name, fn in { Roads = Detailer.roads, Bases = Detailer.bases } do
+			local ok, err = pcall(fn, geo)
+			if not ok then
+				warn("[Realism] Отделка " .. name .. ":", err)
+			end
+		end
+		local ok, err = pcall(Detailer.scatter, geo, mapId)
+		if not ok then
+			warn("[Realism] Деревья и мусор:", err)
+		end
+	end
 	if Config.TerrainGround then
 		local ok, err = pcall(buildTerrain, geo, mapCfg)
 		if not ok then

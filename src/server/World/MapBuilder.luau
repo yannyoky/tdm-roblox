@@ -273,10 +273,25 @@ function builders.beam(geo: Instance, e)
 	box(geo, "Beam", Vector3.new(e.w, e.h, e.d), cf, Color3.fromRGB(200, 160, 40), Enum.Material.Metal)
 end
 
+-- Необязательная «отделка» элементов (ветка графики ставит сюда World/Detailer).
+-- Вызывается после постройки каждого элемента: decorate(geo, e, mapId, созданные детали).
+MapBuilder.decorate = nil :: ((Instance, any, string, { Instance }) -> ())?
+local currentMapId = ""
+
 local function buildElement(geo: Instance, e, rng: Random)
 	local fn = builders[e.kind]
 	if fn then
+		local before = #geo:GetChildren()
 		fn(geo, e, rng)
+		local decorate = MapBuilder.decorate
+		if decorate then
+			local all = geo:GetChildren()
+			local created = table.move(all, before + 1, #all, 1, {})
+			local ok, err = pcall(decorate, geo, e, currentMapId, created)
+			if not ok then
+				warn("[MapBuilder] Отделка элемента:", err)
+			end
+		end
 	else
 		warn("[MapBuilder] Неизвестный элемент карты: " .. tostring(e.kind))
 	end
@@ -564,6 +579,7 @@ function MapBuilder.build(mapId: string): Folder
 	local cfg = MapsConfig.List[mapId]
 	assert(cfg, "Нет карты " .. tostring(mapId))
 	local rng = Random.new(cfg.Filler and cfg.Filler.Seed or 1)
+	currentMapId = mapId
 
 	local map = Instance.new("Folder")
 	map.Name = "Map"
