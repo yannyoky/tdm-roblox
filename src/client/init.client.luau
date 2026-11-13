@@ -14,6 +14,7 @@ local Scoreboard = require(script:WaitForChild("Scoreboard"))
 local DeathScreen = require(script:WaitForChild("DeathScreen"))
 local Hotbar = require(script:WaitForChild("Hotbar"))
 local MainMenu = require(script:WaitForChild("MainMenu"))
+local Graphics = require(script:WaitForChild("Graphics"))
 
 -- Настройки и система окон нужны остальным модулям, поэтому запускаются первыми.
 PlayerSettings.init()
@@ -32,3 +33,4 @@ task.spawn(Scoreboard.init)
 task.spawn(DeathScreen.init)
 task.spawn(Hotbar.init)
 task.spawn(MainMenu.init)
+task.spawn(Graphics.init)
