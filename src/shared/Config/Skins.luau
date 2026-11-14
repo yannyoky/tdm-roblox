@@ -9,6 +9,9 @@
 --   { Type = "Season", Tier = 10 }       -- уровень сезонного пропуска (бесплатная дорожка)
 --   { Type = "Pass", Pass = "SkinPack" } -- Game Pass из Config/Shop
 --
+-- ShirtTemplate / PantsTemplate (необязательно) — id картинки классической одежды Roblox.
+-- Она надевается поверх цветов Shirt/Pants. Взяты из бесплатных моделей Creator Store.
+--
 -- Gear — детали снаряжения: Vest, Helmet, Cap, Beanie, Bandana, Balaclava, Chain, Backpack, Visor.
 local Skins = {}
 
@@ -75,6 +78,8 @@ Skins.List = {
 		Shirt = Color3.fromRGB(240, 240, 240),
 		Pants = Color3.fromRGB(20, 20, 20),
 		Shoes = Color3.fromRGB(20, 20, 20),
+		ShirtTemplate = 6305883971,
+		PantsTemplate = 5900184711,
 		Gear = {
 			{ Kind = "Chain", Color = Color3.fromRGB(240, 200, 70) },
 			{ Kind = "Visor", Color = Color3.fromRGB(20, 20, 20) },
@@ -89,6 +94,8 @@ Skins.List = {
 		Shirt = Color3.fromRGB(40, 60, 110),
 		Pants = Color3.fromRGB(30, 35, 55),
 		Shoes = Color3.fromRGB(20, 20, 20),
+		ShirtTemplate = 311390210,
+		PantsTemplate = 170027698,
 		Gear = { { Kind = "Cap", Color = Color3.fromRGB(30, 40, 80) } },
 	},
 	g_assault = {
@@ -98,6 +105,8 @@ Skins.List = {
 		Shirt = Color3.fromRGB(35, 35, 40),
 		Pants = Color3.fromRGB(35, 35, 40),
 		Shoes = Color3.fromRGB(20, 20, 20),
+		ShirtTemplate = 7052153170,
+		PantsTemplate = 2888443521,
 		Gear = {
 			{ Kind = "Helmet", Color = Color3.fromRGB(30, 30, 35) },
 			{ Kind = "Vest", Color = Color3.fromRGB(25, 25, 30) },
@@ -110,6 +119,8 @@ Skins.List = {
 		Shirt = Color3.fromRGB(85, 95, 60),
 		Pants = Color3.fromRGB(75, 80, 55),
 		Shoes = Color3.fromRGB(50, 40, 30),
+		ShirtTemplate = 1718367929,
+		PantsTemplate = 1837155389,
 		Gear = {
 			{ Kind = "Helmet", Color = Color3.fromRGB(80, 90, 60) },
 			{ Kind = "Backpack", Color = Color3.fromRGB(70, 75, 50) },
@@ -122,6 +133,8 @@ Skins.List = {
 		Shirt = Color3.fromRGB(20, 20, 25),
 		Pants = Color3.fromRGB(20, 20, 25),
 		Shoes = Color3.fromRGB(15, 15, 15),
+		ShirtTemplate = 28984380,
+		PantsTemplate = 28984542,
 		Gear = {
 			{ Kind = "Balaclava", Color = Color3.fromRGB(15, 15, 15) },
 			{ Kind = "Helmet", Color = Color3.fromRGB(20, 20, 25) },
