@@ -11,6 +11,7 @@ local Weapons = require(Shared.Config.Weapons)
 local Net = require(Shared.Net)
 local PlayerSettings = require(script.Parent.PlayerSettings)
 local Audio = require(script.Parent.Audio)
+local Viewmodel = require(script.Parent.Viewmodel)
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
@@ -76,6 +77,7 @@ function WeaponController.init()
 			return
 		end
 		FireWeapon:FireServer(id, head.Position, dir.Unit)
+		Viewmodel.onFire()
 	end
 
 	local function hookTool(tool: Instance)
@@ -225,8 +227,17 @@ function WeaponController.init()
 		if flash then
 			Audio.shot(weaponId, origin)
 		end
+		-- Свой выстрел от первого лица: трассер идёт от дула оружия в руках на экране,
+		-- вспышку там уже нарисовал Viewmodel.
+		local own = false
+		local myHead = player.Character and player.Character:FindFirstChild("Head") :: BasePart?
+		local vmMuzzle = Viewmodel.muzzle()
+		if vmMuzzle and myHead and current and weaponId == current:GetAttribute("WeaponId") and (origin - myHead.Position).Magnitude < 5 then
+			own = true
+			origin = vmMuzzle
+		end
 		-- Вспышка у дула (одна на выстрел, даже у дробовика).
-		if flash then
+		if flash and not own then
 			local p = Instance.new("Part")
 			p.Anchored = true
 			p.CanCollide = false

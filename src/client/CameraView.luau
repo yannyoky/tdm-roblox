@@ -1,6 +1,6 @@
 -- Вид от первого лица. Включён по умолчанию, переключается клавишей V или в настройках.
 -- В машине, после смерти (камера на убийце) и при выключенной настройке — вид от третьего лица.
--- От первого лица видны свои руки и оружие, в центре экрана прицел.
+-- От первого лица руки с оружием рисует Viewmodel, в центре экрана прицел.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -13,16 +13,6 @@ local player = Players.LocalPlayer
 
 local CameraView = {}
 
-local ARM_PARTS = {
-	LeftUpperArm = true,
-	LeftLowerArm = true,
-	LeftHand = true,
-	RightUpperArm = true,
-	RightLowerArm = true,
-	RightHand = true,
-	["Left Arm"] = true,
-	["Right Arm"] = true,
-}
 local THIRD_PERSON_ZOOM = 10
 
 local function wantFirstPerson(): boolean
@@ -87,21 +77,13 @@ function CameraView.init()
 		end
 	end
 
-	-- Режим камеры и видимость рук обновляем после того, как камера Roblox поставила прозрачность.
+	-- Режим камеры обновляем после того, как отработала камера Roblox.
 	RunService:BindToRenderStep("FirstPersonArms", Enum.RenderPriority.Camera.Value + 2, function()
 		local on = wantFirstPerson()
 		apply(on)
 		local menuOpen = Menus.isOpen()
 		cross.Visible = on and not menuOpen
 		UserInputService.MouseIconEnabled = not on or menuOpen
-		local char = player.Character
-		if on and char then
-			for _, part in char:GetChildren() do
-				if part:IsA("BasePart") and ARM_PARTS[part.Name] then
-					part.LocalTransparencyModifier = 0
-				end
-			end
-		end
 	end)
 
 	UserInputService.InputBegan:Connect(function(input, processed)
