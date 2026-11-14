@@ -174,7 +174,7 @@ function Scoreboard.init()
 
 	-- На телефоне — кнопка «Счёт» сверху справа.
 	if UserInputService.TouchEnabled then
-		local b = Ui.button("Счёт", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 170), Size = UDim2.new(0, 80, 0, 32), Parent = gui })
+		local b = Ui.button("Счёт", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 370), Size = UDim2.new(0, 80, 0, 32), Parent = gui })
 		b.Activated:Connect(function()
 			setHolding(not holding)
 		end)

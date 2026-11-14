@@ -286,7 +286,7 @@ function WeaponService.fire(shooter, char: Model?, weaponId: string, origin: Vec
 	for i = 1, def.Pellets or 1 do
 		local dir = applySpread(unit, def.Spread or 0)
 		local endPos, hitSomething = traceBullet(shooter, char, def, weaponId, origin, dir)
-		fx:FireAllClients(fxOrigin, endPos, def.Melee == true, hitSomething, i == 1)
+		fx:FireAllClients(fxOrigin, endPos, def.Melee == true, hitSomething, i == 1, weaponId)
 	end
 	return true
 end
