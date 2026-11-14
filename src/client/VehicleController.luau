@@ -102,6 +102,23 @@ local function vehicleOf(seat: Instance?): Model?
 	return nil
 end
 
+local groundParams = RaycastParams.new()
+groundParams.FilterType = Enum.RaycastFilterType.Exclude
+
+local lastDriven: Model? = nil
+
+-- Водитель вышел: убираем свой момент поворота, чтобы машина не крутилась без него.
+local function releaseAssist()
+	if lastDriven then
+		local driveFolder = lastDriven:FindFirstChild("Drive")
+		local assist = driveFolder and driveFolder:FindFirstChild("SteerAssist") :: Torque?
+		if assist then
+			assist.Torque = Vector3.zero
+		end
+		lastDriven = nil
+	end
+end
+
 -- Выставляем моторы и руль по вводу водителя.
 local function drive(model: Model, seat: VehicleSeat)
 	local root = model.PrimaryPart
@@ -117,6 +134,8 @@ local function drive(model: Model, seat: VehicleSeat)
 	local driveSign = model:GetAttribute("DriveSign") or -1
 	local steerSign = model:GetAttribute("SteerSign") or -1
 
+	lastDriven = model
+	groundParams.FilterDescendantsInstances = { model, player.Character :: Instance }
 	local throttle, steer = seat.ThrottleFloat, seat.SteerFloat
 	local forward = root.AssemblyLinearVelocity:Dot(root.CFrame.LookVector)
 
@@ -140,6 +159,28 @@ local function drive(model: Model, seat: VehicleSeat)
 	-- На скорости руль поворачивается меньше, чтобы машина не переворачивалась.
 	local speedFactor = math.clamp(math.abs(forward) / maxSpeed, 0, 1)
 	local angle = steerSign * steer * maxSteer * (1 - 0.55 * speedFactor)
+
+	-- Помощник поворота: доводим скорость разворота шасси до той, что дала бы такая
+	-- геометрия руля (велосипедная модель). Без руля он гасит лишнее вращение (занос).
+	local assist = driveFolder:FindFirstChild("SteerAssist") :: Torque?
+	if assist then
+		local wheelbase = model:GetAttribute("Wheelbase") or 8
+		local len = model:GetAttribute("Length") or 12
+		local width = model:GetAttribute("Width") or 6
+		local steerRad = math.rad(maxSteer * (1 - 0.55 * speedFactor))
+		-- руль вправо (steer > 0) при езде вперёд = вращение по часовой сверху = минус по оси Y
+		local desired = -steer * forward * math.tan(steerRad) / wheelbase
+		local current = root.AssemblyAngularVelocity:Dot(root.CFrame.UpVector)
+		local mass = root.AssemblyMass
+		local inertia = mass * (len * len + width * width) / 12
+		local maxTorque = mass * workspace.Gravity * len * 0.5
+		local torque = 0
+		local down = workspace:Raycast(root.Position, -root.CFrame.UpVector * (radius + 3), groundParams)
+		if down then -- в воздухе не крутим
+			torque = math.clamp(inertia * 12 * (desired - current), -maxTorque, maxTorque)
+		end
+		assist.Torque = Vector3.new(0, torque, 0)
+	end
 
 	for _, c in driveFolder:GetChildren() do
 		if c:IsA("HingeConstraint") then
@@ -174,6 +215,7 @@ local function step(dt: number)
 	baseWarning.Visible = char ~= nil and char:GetAttribute("InEnemyBase") == true
 
 	if not model then
+		releaseAssist()
 		panel.Visible = false
 		return
 	end
@@ -189,10 +231,14 @@ local function step(dt: number)
 	hpFill.BackgroundColor3 = Color3.fromRGB(220, 60, 50):Lerp(Color3.fromRGB(90, 200, 90), frac)
 
 	if seat:IsA("VehicleSeat") then
+		if lastDriven and lastDriven ~= model then
+			releaseAssist()
+		end
 		drive(model, seat)
 		updateSirens(model, dt)
 		hintLabel.Text = "W/S — газ/тормоз, A/D — руль, прыжок — выйти"
 	else
+		releaseAssist()
 		hintLabel.Text = "Прыжок — выйти"
 	end
 end
