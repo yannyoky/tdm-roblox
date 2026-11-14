@@ -117,13 +117,20 @@ function CombatFx.init()
 	if player.Character then
 		task.spawn(watchHumanoid, player.Character)
 	end
+	-- Камера Roblox считает следующий кадр от текущего CFrame камеры, поэтому тряску
+	-- добавляем разницей с прошлым кадром, иначе прицел уползает.
+	local applied = CFrame.identity
 	RunService:BindToRenderStep("DamageShake", Enum.RenderPriority.Camera.Value + 1, function(dt)
-		if shake <= 0 then
-			return
+		local target = CFrame.identity
+		if shake > 0 then
+			local a = math.rad(1.5) * shake
+			target = CFrame.Angles((math.random() - 0.5) * a, (math.random() - 0.5) * a, 0)
+			shake = math.max(0, shake - dt * 4)
 		end
-		local a = math.rad(1.5) * shake
-		workspace.CurrentCamera.CFrame *= CFrame.Angles((math.random() - 0.5) * a, (math.random() - 0.5) * a, 0)
-		shake = math.max(0, shake - dt * 4)
+		if target ~= applied then
+			workspace.CurrentCamera.CFrame *= applied:Inverse() * target
+			applied = target
+		end
 	end)
 
 	-- Подсказку «Поднять» видят только союзники раненого (Enabled меняем только у себя на клиенте).

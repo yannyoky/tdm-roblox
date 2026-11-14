@@ -619,10 +619,17 @@ local function update(dt: number)
 end
 
 -- Лёгкий подброс камеры при выстреле. Ставится до вьюмодели, чтобы руки шли вместе с камерой.
+-- Камера Roblox считает следующий кадр от текущего CFrame камеры, поэтому подброс
+-- добавляем только разницей с прошлым кадром: когда пружина вернулась, прицел стоит там же,
+-- где был, и очередь не уводит вверх.
+local appliedPunch = 0
 local function updateCamera(dt: number)
 	stepSpring(camPunch, math.min(dt, 0.1))
-	if math.abs(camPunch.x) > 1e-4 and built then
-		workspace.CurrentCamera.CFrame *= ANG(camPunch.x, 0, 0)
+	local target = if built then camPunch.x else 0
+	local delta = target - appliedPunch
+	if math.abs(delta) > 1e-6 then
+		workspace.CurrentCamera.CFrame *= ANG(delta, 0, 0)
+		appliedPunch = target
 	end
 end
 
@@ -648,9 +655,9 @@ function Viewmodel.onFire()
 	end
 	local r = b.hold.recoil or 1
 	recoilBack.v += 2.2 * r
-	recoilPitch.v += 1.4 * r
+	recoilPitch.v += 0.8 * r
 	recoilRoll.v += (math.random() - 0.5) * 0.8 * r
-	camPunch.v += 0.18 * r
+	camPunch.v += 0.07 * r
 
 	-- Вспышка у дула и гильза.
 	local cam = workspace.CurrentCamera
