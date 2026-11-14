@@ -1,5 +1,6 @@
 -- Управление машиной и её HUD.
 -- Газ/тормоз/руль приходят от VehicleSeat (W/S/A/D, стрелки, геймпад, джойстик на телефоне).
+-- Управление аркадное, как в GTA: резкий поворот, машина держит дорогу, Shift — ручник (занос).
 -- Клиент водителя сам выставляет моторы колёс и угол руля: физику машины считает его компьютер,
 -- поэтому управление отзывчивое даже с пингом. Выйти из машины — прыжок.
 local Players = game:GetService("Players")
@@ -107,6 +108,17 @@ groundParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local lastDriven: Model? = nil
 
+-- Управление как в аркадных гонках.
+local MIN_RADIUS = 11 -- минимальный радиус разворота, студов
+local MAX_YAW_LOW = 2.3 -- скорость разворота на малой скорости, рад/с
+local MAX_YAW_HIGH = 1.25 -- на максимальной скорости
+local YAW_RESPONSE = 9 -- как быстро машина выходит на нужную скорость разворота (1/с)
+local GRIP = 7 -- как быстро гасится скольжение боком (1/с)
+local HANDBRAKE_GRIP = 0.9
+local steerSmooth = 0
+local lastDt = 1 / 60
+local handbrakeHeld = false
+
 -- Водитель вышел: убираем свой момент поворота, чтобы машина не крутилась без него.
 local function releaseAssist()
 	if lastDriven then
@@ -156,37 +168,79 @@ local function drive(model: Model, seat: VehicleSeat)
 		wheelSpeed, wheelTorque = 0, torque * 0.08 -- накат с лёгким сопротивлением
 	end
 
-	-- На скорости руль поворачивается меньше, чтобы машина не переворачивалась.
-	local speedFactor = math.clamp(math.abs(forward) / maxSpeed, 0, 1)
-	local angle = steerSign * steer * maxSteer * (1 - 0.55 * speedFactor)
+	-- Руль как в аркадных гонках (GTA): плавно, но быстро доворачивается за ~0.15 с,
+	-- а возвращается ещё быстрее.
+	local dt = lastDt
+	local rate = if math.abs(steer) > math.abs(steerSmooth) and math.sign(steer) == math.sign(steerSmooth) then 7 else 10
+	steerSmooth += math.clamp(steer - steerSmooth, -rate * dt, rate * dt)
+	steer = steerSmooth
 
-	-- Помощник поворота: доводим скорость разворота шасси до той, что дала бы такая
-	-- геометрия руля (велосипедная модель). Без руля он гасит лишнее вращение (занос).
+	-- Колёса на скорости поворачиваются немного меньше (только на вид, поворот задаёт помощник ниже).
+	local speedFactor = math.clamp(math.abs(forward) / maxSpeed, 0, 1)
+	local angle = steerSign * steer * maxSteer * (1 - 0.35 * speedFactor)
+
+	local down = workspace:Raycast(root.Position, -root.CFrame.UpVector * (radius + 3), groundParams)
+	local handbrake = handbrakeHeld and down ~= nil
+
+	-- Помощник поворота: задаёт скорость разворота машины. Разворачивается резко уже на малой
+	-- скорости (радиус ~ MIN_RADIUS), на большой скорости поворот чуть спокойнее, чтобы не кувыркаться.
+	-- Без руля гасит лишнее вращение (занос). На ручнике разворот сильнее.
 	local assist = driveFolder:FindFirstChild("SteerAssist") :: Torque?
 	if assist then
-		local wheelbase = model:GetAttribute("Wheelbase") or 8
 		local len = model:GetAttribute("Length") or 12
 		local width = model:GetAttribute("Width") or 6
-		local steerRad = math.rad(maxSteer * (1 - 0.55 * speedFactor))
+		local maxYaw = MAX_YAW_LOW + (MAX_YAW_HIGH - MAX_YAW_LOW) * speedFactor
+		if handbrake then
+			maxYaw *= 1.5
+		end
+		local yawRate = math.min(math.abs(forward) / MIN_RADIUS, maxYaw)
 		-- руль вправо (steer > 0) при езде вперёд = вращение по часовой сверху = минус по оси Y
-		local desired = -steer * forward * math.tan(steerRad) / wheelbase
+		local desired = -steer * yawRate * (if forward >= 0 then 1 else -1)
 		local current = root.AssemblyAngularVelocity:Dot(root.CFrame.UpVector)
 		local mass = root.AssemblyMass
 		local inertia = mass * (len * len + width * width) / 12
-		local maxTorque = mass * workspace.Gravity * len * 0.5
+		local maxTorque = mass * workspace.Gravity * len * 2
 		local torque = 0
-		local down = workspace:Raycast(root.Position, -root.CFrame.UpVector * (radius + 3), groundParams)
 		if down then -- в воздухе не крутим
-			torque = math.clamp(inertia * 12 * (desired - current), -maxTorque, maxTorque)
+			-- Трение колёс сильно мешает развороту, поэтому момент большой.
+			local gain = if handbrake and steer == 0 then 4 else 70
+			torque = math.clamp(inertia * gain * (desired - current), -maxTorque, maxTorque)
+			-- И немного доводим скорость разворота напрямую (физику машины считает компьютер водителя).
+			local blend = math.min(1, (if handbrake and steer == 0 then 1.5 else YAW_RESPONSE) * dt)
+			local up = root.CFrame.UpVector
+			root.AssemblyAngularVelocity += up * ((desired - current) * blend)
 		end
 		assist.Torque = Vector3.new(0, torque, 0)
+	end
+
+	-- Сцепление с дорогой: машина едет туда, куда смотрит, а не скользит боком.
+	-- На ручнике сцепление слабое, машину заносит.
+	if down then
+		local vel = root.AssemblyLinearVelocity
+		local right = root.CFrame.RightVector
+		local side = vel:Dot(right)
+		local grip = if handbrake then HANDBRAKE_GRIP else GRIP
+		local remove = side * math.min(1, grip * dt)
+		root.AssemblyLinearVelocity = vel - right * remove
+	end
+
+	-- Ручник: задние колёса стоят, машина тормозит юзом.
+	if handbrake then
+		wheelSpeed, wheelTorque = 0, torque * 0.6
 	end
 
 	for _, c in driveFolder:GetChildren() do
 		if c:IsA("HingeConstraint") then
 			if c.ActuatorType == Enum.ActuatorType.Motor then
-				c.AngularVelocity = driveSign * wheelSpeed
-				c.MotorMaxTorque = wheelTorque
+				local rear = c.Name:sub(-2, -2) == "R"
+				if handbrake and not rear then
+					-- передние колёса на ручнике катятся свободно
+					c.AngularVelocity = 0
+					c.MotorMaxTorque = 0
+				else
+					c.AngularVelocity = driveSign * wheelSpeed
+					c.MotorMaxTorque = wheelTorque
+				end
 			else
 				c.TargetAngle = angle
 			end
@@ -207,6 +261,7 @@ local function updateSirens(model: Model, dt: number)
 end
 
 local function step(dt: number)
+	lastDt = math.min(dt, 0.1)
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local seat = hum and hum.SeatPart
@@ -215,6 +270,7 @@ local function step(dt: number)
 	baseWarning.Visible = char ~= nil and char:GetAttribute("InEnemyBase") == true
 
 	if not model then
+		steerSmooth = 0
 		releaseAssist()
 		panel.Visible = false
 		return
@@ -236,7 +292,7 @@ local function step(dt: number)
 		end
 		drive(model, seat)
 		updateSirens(model, dt)
-		hintLabel.Text = "W/S — газ/тормоз, A/D — руль, прыжок — выйти"
+		hintLabel.Text = "W/S — газ/тормоз, A/D — руль, Shift — ручник, прыжок — выйти"
 	else
 		releaseAssist()
 		hintLabel.Text = "Прыжок — выйти"
@@ -245,6 +301,19 @@ end
 
 function VehicleController.init()
 	buildGui()
+	-- Ручник: Shift на клавиатуре, R1 на геймпаде. В машине бег не нужен, поэтому Shift свободен.
+	local UserInputService = game:GetService("UserInputService")
+	local HANDBRAKE_KEYS = { [Enum.KeyCode.LeftShift] = true, [Enum.KeyCode.RightShift] = true, [Enum.KeyCode.ButtonR1] = true }
+	UserInputService.InputBegan:Connect(function(input)
+		if HANDBRAKE_KEYS[input.KeyCode] then
+			handbrakeHeld = true
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if HANDBRAKE_KEYS[input.KeyCode] then
+			handbrakeHeld = false
+		end
+	end)
 	-- Stepped идёт до расчёта физики: новые значения моторов применяются в этом же кадре.
 	RunService.Stepped:Connect(function(_, dt)
 		step(dt)
