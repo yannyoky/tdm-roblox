@@ -10,6 +10,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Weapons = require(Shared.Config.Weapons)
 local Net = require(Shared.Net)
 local PlayerSettings = require(script.Parent.PlayerSettings)
+local Audio = require(script.Parent.Audio)
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
@@ -50,6 +51,7 @@ function WeaponController.init()
 				return
 			end
 			if (tool:GetAttribute("Ammo") or 0) <= 0 then
+				Audio.ui(Audio.Config.Empty)
 				Reload:FireServer(id)
 				return
 			end
@@ -81,6 +83,13 @@ function WeaponController.init()
 			return
 		end
 		hooked[tool] = true
+		-- Звук перезарядки у своего оружия.
+		tool:GetAttributeChangedSignal("Reloading"):Connect(function()
+			local handle = tool:FindFirstChild("Handle")
+			if tool:GetAttribute("Reloading") and handle and handle:IsA("BasePart") then
+				Audio.at(Audio.Config.Reload, handle.Position)
+			end
+		end)
 		tool.Equipped:Connect(function()
 			current = tool
 		end)
@@ -205,9 +214,15 @@ function WeaponController.init()
 		Debris:AddItem(p, lifetime)
 	end
 
-	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, isMelee: boolean, hitSomething: boolean, flash: boolean?)
+	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, isMelee: boolean, hitSomething: boolean, flash: boolean?, weaponId: string?)
 		if isMelee then
+			if flash then
+				Audio.at(Audio.Config.Melee, origin)
+			end
 			return
+		end
+		if flash then
+			Audio.shot(weaponId, origin)
 		end
 		-- Вспышка у дула (одна на выстрел, даже у дробовика).
 		if flash then
