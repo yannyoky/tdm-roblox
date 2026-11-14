@@ -47,7 +47,7 @@ function InventoryMenu.init()
 		BackgroundTransparency = 1,
 		TextColor3 = Color3.fromRGB(200, 200, 200),
 		Font = Enum.Font.Gotham,
-		TextScaled = true,
+		TextSize = 14,
 		TextWrapped = true,
 		Text = "Отметьте, что брать в бой. Можно взять всё. Действует со следующего появления.",
 	}).Parent = panel
@@ -59,7 +59,7 @@ function InventoryMenu.init()
 			BackgroundTransparency = 1,
 			TextColor3 = Color3.new(1, 1, 1),
 			Font = Enum.Font.GothamBold,
-			TextScaled = true,
+			TextSize = 18,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Text = Weapons.SlotNames[slot] or slot,
 		}).Parent = panel
@@ -81,7 +81,8 @@ function InventoryMenu.init()
 				BackgroundColor3 = OFF,
 				TextColor3 = Color3.new(1, 1, 1),
 				Font = Enum.Font.GothamBold,
-				TextScaled = true,
+				TextSize = 16,
+				TextTruncate = Enum.TextTruncate.AtEnd,
 				Text = Weapons.List[id].DisplayName,
 			}, {
 				make("UICorner", { CornerRadius = UDim.new(0, 6) }),

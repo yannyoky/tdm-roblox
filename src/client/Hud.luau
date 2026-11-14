@@ -55,7 +55,8 @@ local function button(text: string, size: UDim2): TextButton
 		BackgroundColor3 = Color3.fromRGB(45, 45, 55),
 		TextColor3 = WHITE,
 		Font = Enum.Font.GothamBold,
-		TextScaled = true,
+		TextSize = 18,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Text = text,
 		AutoButtonColor = true,
 	}, { corner(6), make("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }) })
@@ -202,13 +203,14 @@ function Hud.init()
 			captureText.Text = string.format("Захват %d%%", progress)
 		end
 
-		votePanel.Visible = phase == "Lobby"
+		votePanel.Visible = phase == "Lobby" and not Menus.isOpen()
 		for id, b in voteButtons do
 			local name = state:GetAttribute("ModeName_" .. id) or id
 			b.Text = string.format("%s%s (%d)", if myVote == id then "✓ " else "", name, state:GetAttribute("Votes_" .. id) or 0)
 		end
 	end
 	state.AttributeChanged:Connect(refresh)
+	Menus.onChanged(refresh) -- кнопки голосования прячутся, пока открыто окно
 	refresh()
 
 	local function refreshPlayer()

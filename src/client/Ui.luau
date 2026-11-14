@@ -15,6 +15,10 @@ Ui.Colors = {
 
 function Ui.make(className: string, props: { [string]: any }?, children: { Instance }?): any
 	local inst = Instance.new(className)
+	if className == "ScreenGui" then
+		-- По умолчанию у ScreenGui из кода порядок Global: дети с ZIndex 1 уходят под окно.
+		(inst :: ScreenGui).ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	end
 	local parent = nil
 	for key, value in props or {} do
 		if key == "Parent" then
@@ -41,19 +45,25 @@ function Ui.padding(px: number): UIPadding
 	return Ui.make("UIPadding", { PaddingTop = u, PaddingBottom = u, PaddingLeft = u, PaddingRight = u })
 end
 
+-- Надпись. По умолчанию текст подстраивается под высоту, но не больше 28 px,
+-- чтобы соседние строки не прыгали в размере. С TextSize размер фиксированный.
 function Ui.label(props: { [string]: any }): TextLabel
 	local base: { [string]: any } = {
 		BackgroundTransparency = 1,
 		TextColor3 = Ui.Colors.White,
 		Font = Enum.Font.GothamBold,
-		TextScaled = true,
+		TextScaled = props.TextSize == nil,
 		TextStrokeTransparency = 0.7,
 		Text = "",
 	}
 	for key, value in props do
 		base[key] = value
 	end
-	return Ui.make("TextLabel", base)
+	local l = Ui.make("TextLabel", base)
+	if l.TextScaled then
+		Ui.make("UITextSizeConstraint", { MaxTextSize = 28, MinTextSize = 10, Parent = l })
+	end
+	return l
 end
 
 function Ui.button(text: string, props: { [string]: any }?): TextButton
@@ -61,7 +71,9 @@ function Ui.button(text: string, props: { [string]: any }?): TextButton
 		BackgroundColor3 = Ui.Colors.Button,
 		TextColor3 = Ui.Colors.White,
 		Font = Enum.Font.GothamBold,
-		TextScaled = true,
+		TextScaled = false,
+		TextSize = 16,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Text = text,
 		AutoButtonColor = true,
 	}
@@ -85,17 +97,16 @@ function Ui.window(title: string, size: UDim2): (Frame, ScrollingFrame, TextButt
 		BackgroundColor3 = Ui.Colors.Panel,
 		BackgroundTransparency = 0.05,
 		Visible = false,
-		ZIndex = 10,
 	}, {
 		Ui.corner(10),
-		Ui.make("UISizeConstraint", { MaxSize = Vector2.new(size.X.Offset > 0 and size.X.Offset or 900, 2000) }),
+		-- Не выше 560 px: окно не доходит до кнопок голосования внизу экрана.
+		Ui.make("UISizeConstraint", { MaxSize = Vector2.new(if size.X.Offset > 0 then size.X.Offset else 900, 560) }),
 	})
 	Ui.label({
 		Position = UDim2.new(0, 14, 0, 8),
 		Size = UDim2.new(1, -70, 0, 30),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Text = title,
-		ZIndex = 11,
 		Parent = frame,
 	})
 	local close = Ui.button("×", {
@@ -103,7 +114,6 @@ function Ui.window(title: string, size: UDim2): (Frame, ScrollingFrame, TextButt
 		Position = UDim2.new(1, -8, 0, 8),
 		Size = UDim2.new(0, 34, 0, 30),
 		BackgroundColor3 = Ui.Colors.Bad,
-		ZIndex = 11,
 		Parent = frame,
 	})
 	local content = Ui.make("ScrollingFrame", {
@@ -114,7 +124,6 @@ function Ui.window(title: string, size: UDim2): (Frame, ScrollingFrame, TextButt
 		CanvasSize = UDim2.new(),
 		ScrollBarThickness = 6,
 		BorderSizePixel = 0,
-		ZIndex = 11,
 		Parent = frame,
 	}, {
 		Ui.make("UIPadding", {
