@@ -263,7 +263,9 @@ function Hud.init()
 		end
 	end)
 
+	local Audio = require(script.Parent.Audio)
 	Net.get("HitMarker").OnClientEvent:Connect(function(isHead: boolean)
+		Audio.ui(Audio.Config.HitMarker)
 		hitMarker.TextColor3 = if isHead then Color3.fromRGB(255, 80, 80) else WHITE
 		hitMarker.Visible = true
 		task.delay(0.15, function()
