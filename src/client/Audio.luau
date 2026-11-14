@@ -51,6 +51,20 @@ function Audio.shot(weaponId: string?, position: Vector3)
 	Audio.at(cfg, position)
 end
 
+-- Свой выстрел: звучит сразу, без ожидания ответа сервера, и не зависит от положения.
+function Audio.shotLocal(weaponId: string?)
+	local cfg = (weaponId and SoundsConfig.Shots[weaponId]) or SoundsConfig.DefaultShot
+	if not cfg or cfg.Id == "" then
+		return
+	end
+	local s = Instance.new("Sound")
+	s.SoundId = cfg.Id
+	s.Volume = (cfg.Volume or 0.8) * 0.85
+	s.PlaybackSpeed = (cfg.Pitch or 1) * (0.96 + math.random() * 0.08)
+	SoundService:PlayLocalSound(s)
+	Debris:AddItem(s, 4)
+end
+
 Audio.Config = SoundsConfig
 
 return Audio

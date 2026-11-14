@@ -6,7 +6,7 @@
 
 | Что | Файл | Откуда |
 |---|---|---|
-| Звуки выстрелов, перезарядки (у каждого оружия своя), шагов, ножа, сухого щелчка | `src/shared/Config/Sounds.luau` | бесплатные Audio (авторы указаны в комментариях) |
+| Звуки выстрелов (свой звучит сразу при нажатии), перезарядки (у каждого оружия своя), шагов (в такт касанию стопы), ножа, сухого щелчка | `src/shared/Config/Sounds.luau` | бесплатные Audio (авторы указаны в комментариях) |
 | Модели оружия: АК, MP5, M1014, M60, AWP, Макаров, нож, граната, светошумовая | `src/server/Services/WeaponMeshes.luau` | «LowPolygon Gun Pack» (9327209214), нож из «STREETMODELS» (3495901227) |
 | Одежда: Авторитет (смокинг), силовики (полиция, синяя форма, камуфляж, спецназ) | `ShirtTemplate` / `PantsTemplate` в `src/shared/Config/Skins.luau` | классическая одежда из бесплатных NPC-моделей |
 | Кузова машин: Мерседес W124, Toyota Tacoma, Mercedes Vito (банда); полицейский седан, Chevrolet Tahoe, Mercedes Unimog (силовики) | `src/server/World/VehicleMeshes.luau` | «Low-Poly Vehicle/Car Pack» (93588406843965), полицейская из «Low Poly Cars Pack» (9127235869) |

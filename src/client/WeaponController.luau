@@ -77,6 +77,12 @@ function WeaponController.init()
 			return
 		end
 		FireWeapon:FireServer(id, head.Position, dir.Unit)
+		-- Свой звук сразу, не дожидаясь сервера (иначе он отстаёт на пинг).
+		if def.Melee then
+			Audio.ui(Audio.Config.Melee)
+		elseif def.Kind ~= "Grenade" then
+			Audio.shotLocal(id)
+		end
 		Viewmodel.onFire()
 	end
 
@@ -218,23 +224,24 @@ function WeaponController.init()
 	end
 
 	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, isMelee: boolean, hitSomething: boolean, flash: boolean?, weaponId: string?)
+		-- Свой выстрел: звук уже сыгран при нажатии, от первого лица трассер идёт от дула
+		-- оружия в руках на экране, а вспышку там нарисовал Viewmodel.
+		local myHead = player.Character and player.Character:FindFirstChild("Head") :: BasePart?
+		local mine = myHead ~= nil and current ~= nil and weaponId == current:GetAttribute("WeaponId")
+			and (origin - myHead.Position).Magnitude < 6
 		if isMelee then
-			if flash then
+			if flash and not mine then
 				Audio.at(Audio.Config.Melee, origin)
 			end
 			return
 		end
-		if flash then
+		if flash and not mine then
 			Audio.shot(weaponId, origin)
 		end
-		-- Свой выстрел от первого лица: трассер идёт от дула оружия в руках на экране,
-		-- вспышку там уже нарисовал Viewmodel.
-		local own = false
-		local myHead = player.Character and player.Character:FindFirstChild("Head") :: BasePart?
 		local vmMuzzle = Viewmodel.muzzle()
-		if vmMuzzle and myHead and current and weaponId == current:GetAttribute("WeaponId") and (origin - myHead.Position).Magnitude < 5 then
-			own = true
-			origin = vmMuzzle
+		local own = mine and vmMuzzle ~= nil
+		if own then
+			origin = vmMuzzle :: Vector3
 		end
 		-- Вспышка у дула (одна на выстрел, даже у дробовика).
 		if flash and not own then
