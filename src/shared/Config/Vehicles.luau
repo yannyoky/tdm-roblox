@@ -4,7 +4,8 @@
 --
 -- Поля машины:
 --   Style        -- внешний вид кузова: sedan | pickup | van | suv | armored
---   Width/Length -- размер шасси в студах; вперёд — это -Z модели
+--   Width/Length -- размер шасси в студах; вперёд — это -Z модели. Подогнан под кузов
+--                   из World/VehicleMeshes (ширина = кузов − 2, длина = кузов − 1)
 --   WheelRadius  -- радиус колёс (больше = выше клиренс, лучше по бездорожью)
 --   MaxSpeed     -- студов/с вперёд (пешком 16, бегом 24)
 --   ReverseSpeed -- студов/с назад
@@ -32,8 +33,8 @@ return {
 		Bandits_Sedan = {
 			Name = "Седан",
 			Style = "sedan",
-			Width = 6,
-			Length = 12,
+			Width = 5.9,
+			Length = 18.9,
 			WheelRadius = 1.4,
 			MaxSpeed = 88,
 			ReverseSpeed = 30,
@@ -53,8 +54,8 @@ return {
 		Bandits_Pickup = {
 			Name = "Пикап",
 			Style = "pickup",
-			Width = 6.4,
-			Length = 14,
+			Width = 5.6,
+			Length = 17.5,
 			WheelRadius = 1.7,
 			MaxSpeed = 74,
 			ReverseSpeed = 28,
@@ -76,8 +77,8 @@ return {
 		Bandits_Van = {
 			Name = "Фургон",
 			Style = "van",
-			Width = 7,
-			Length = 15,
+			Width = 5.3,
+			Length = 16.3,
 			WheelRadius = 1.5,
 			MaxSpeed = 64,
 			ReverseSpeed = 24,
@@ -101,8 +102,8 @@ return {
 		Gov_Patrol = {
 			Name = "Патрульная",
 			Style = "sedan",
-			Width = 6,
-			Length = 12.5,
+			Width = 5.6,
+			Length = 17.3,
 			WheelRadius = 1.4,
 			MaxSpeed = 84,
 			ReverseSpeed = 30,
@@ -123,8 +124,8 @@ return {
 		Gov_SUV = {
 			Name = "Внедорожник",
 			Style = "suv",
-			Width = 6.8,
-			Length = 13,
+			Width = 5.7,
+			Length = 16.8,
 			WheelRadius = 1.8,
 			MaxSpeed = 72,
 			ReverseSpeed = 28,
@@ -145,8 +146,8 @@ return {
 		Gov_Armored = {
 			Name = "Бронефургон",
 			Style = "armored",
-			Width = 7.6,
-			Length = 16,
+			Width = 6.6,
+			Length = 17.2,
 			WheelRadius = 1.9,
 			MaxSpeed = 56,
 			ReverseSpeed = 22,
@@ -158,8 +159,8 @@ return {
 			Accent = Color3.fromRGB(40, 70, 160),
 			LightBar = true,
 			Seats = {
-				Vector3.new(-1.6, 1, -3.8),
-				Vector3.new(1.6, 1, -3.8),
+				Vector3.new(-1.6, 1, -5.2),
+				Vector3.new(1.6, 1, -5.2),
 				Vector3.new(-1.6, 1, -1),
 				Vector3.new(1.6, 1, -1),
 				Vector3.new(-1.6, 1, 1.8),

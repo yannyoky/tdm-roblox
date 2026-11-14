@@ -639,7 +639,7 @@ local function buildBase(map: Folder, geo: Instance, teamKey: string, cfg, cente
 		local x = (n - (#list + 1) / 2) * spacing
 		local pad = make("Part", {
 			Name = "Pad" .. n,
-			Size = Vector3.new(9, 0.2, 17),
+			Size = Vector3.new(9, 0.2, 20),
 			CFrame = cf * CFrame.new(x, 0.45, -BASE_D / 2 + 22),
 			Color = Color3.fromRGB(230, 200, 60),
 			Material = Enum.Material.SmoothPlastic,
