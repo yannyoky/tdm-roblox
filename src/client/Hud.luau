@@ -142,10 +142,10 @@ function Hud.init()
 	local hitMarker = label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(0, 34, 0, 34), Text = "×", Visible = false })
 	hitMarker.Parent = gui
 
-	-- Лента убийств (справа сверху).
+	-- Лента убийств (справа, под миникартой).
 	local feed = make("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 12),
+		Position = UDim2.new(1, -12, 0, 212),
 		Size = UDim2.new(0, 320, 0, 150),
 		BackgroundTransparency = 1,
 	}, { make("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 4) }) })
