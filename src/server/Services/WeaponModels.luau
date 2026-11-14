@@ -4,9 +4,12 @@
 --      (передняя сторона детали). Если внутри Handle есть Attachment "Grip", рука встанет в него,
 --      Attachment "Muzzle" у дула — оттуда пойдут трассер и вспышка.
 --      Так подключаются модели из Creator Store или сделанные в Blender.
---   2. Иначе модель собирается из деталей по рецепту ниже: ствол, магазин, рукоять, приклад, прицел.
+--   2. Готовые меши из Creator Store, записанные данными в WeaponMeshes.luau.
+--   3. Иначе модель собирается из деталей по рецепту ниже: ствол, магазин, рукоять, приклад, прицел.
 -- Детали оружия не сталкиваются и не ловят пули.
 local ServerStorage = game:GetService("ServerStorage")
+
+local WeaponMeshes = require(script.Parent.WeaponMeshes)
 
 local WeaponModels = {}
 
@@ -240,9 +243,51 @@ local function fromStorage(tool: Tool, id: string): boolean
 	return true
 end
 
+-- Модель из мешей (WeaponMeshes). Handle — невидимая точка хвата, меши приварены к ней.
+local function fromMeshes(tool: Tool, id: string): boolean
+	local data = WeaponMeshes[id]
+	if not data then
+		return false
+	end
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = v(0.2, 0.2, 0.2)
+	handle.Transparency = 1
+	prepare(handle)
+	handle.CFrame = CFrame.new()
+	handle.Parent = tool
+	for i, piece in data.parts do
+		local p = Instance.new("Part")
+		p.Name = "Mesh" .. i
+		p.Size = v(0.1, 0.1, 0.1)
+		p.Color = piece.color
+		p.Material = (piece.mat and (M :: any)[piece.mat]) or M.SmoothPlastic
+		prepare(p)
+		p.CFrame = CFrame.new(table.unpack(piece.cf))
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.FileMesh
+		mesh.MeshId = "rbxassetid://" .. piece.mesh
+		if piece.tex then
+			mesh.TextureId = "rbxassetid://" .. piece.tex
+		end
+		mesh.Scale = piece.scale
+		mesh.Parent = p
+		p.Parent = tool
+		weldTo(handle, p)
+	end
+	if data.muzzle then
+		local muzzle = Instance.new("Attachment")
+		muzzle.Name = "Muzzle"
+		muzzle.Position = data.muzzle
+		muzzle.Parent = handle
+	end
+	tool.Grip = CFrame.new()
+	return true
+end
+
 -- Собрать модель оружия внутри tool. def — запись из Config/Weapons.
 function WeaponModels.build(tool: Tool, id: string, def)
-	if fromStorage(tool, id) then
+	if fromStorage(tool, id) or fromMeshes(tool, id) then
 		return
 	end
 	local recipe = RECIPES[id]
