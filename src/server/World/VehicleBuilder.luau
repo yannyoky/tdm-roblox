@@ -235,11 +235,47 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 		motor.AngularVelocity = 0
 		motor.Parent = drive
 
-		local noCollide = Instance.new("NoCollisionConstraint")
-		noCollide.Part0 = wheel
-		noCollide.Part1 = hub
-		noCollide.Parent = wheel
+		if hub ~= chassis then
+			local noCollide = Instance.new("NoCollisionConstraint")
+			noCollide.Part0 = wheel
+			noCollide.Part1 = hub
+			noCollide.Parent = wheel
+		end
 	end
+
+	-- Колёса не сталкиваются с собственным кузовом. Без этого повёрнутое переднее колесо
+	-- упиралось в шасси и капот, и руль не поворачивался.
+	local wheels, bodyParts = {}, {}
+	for _, part in model:GetChildren() do
+		if part:IsA("BasePart") then
+			if part.Name:sub(1, 6) == "Wheel_" then
+				table.insert(wheels, part)
+			elseif part.Name:sub(1, 8) ~= "Knuckle_" then
+				table.insert(bodyParts, part)
+			end
+		end
+	end
+	for _, wheel in wheels do
+		for _, part in bodyParts do
+			local nc = Instance.new("NoCollisionConstraint")
+			nc.Part0 = wheel
+			nc.Part1 = part
+			nc.Parent = wheel
+		end
+	end
+
+	-- Помощник поворота: крутящий момент вокруг вертикали шасси. Его выставляет клиент водителя
+	-- (VehicleController), чтобы машина поворачивала уверенно, даже когда колёса скользят.
+	local center = attachment(chassis, "Center", CFrame.new())
+	local assist = Instance.new("Torque")
+	assist.Name = "SteerAssist"
+	assist.Attachment0 = center
+	assist.RelativeTo = Enum.ActuatorRelativeTo.Attachment0
+	assist.Torque = Vector3.zero
+	assist.Parent = drive
+	model:SetAttribute("Wheelbase", wheelZ * 2)
+	model:SetAttribute("Length", L)
+	model:SetAttribute("Width", W)
 
 	return model
 end
