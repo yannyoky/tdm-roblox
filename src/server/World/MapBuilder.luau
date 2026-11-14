@@ -16,6 +16,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local TeamsConfig = require(Shared.Config.Teams)
 local MapsConfig = require(Shared.Config.Maps)
 local VehiclesConfig = require(Shared.Config.Vehicles)
+local DecorConfig = require(Shared.Config.Decor)
+local Detailer = require(script.Parent.Detailer)
 
 local MapBuilder = {}
 
@@ -321,10 +323,22 @@ function builders.beam(geo: Instance, e)
 	box(geo, "Beam", Vector3.new(e.w, e.h, e.d), cf, Color3.fromRGB(200, 160, 40), Enum.Material.Metal)
 end
 
+local currentMapId = ""
+
 local function buildElement(geo: Instance, e, style: Random)
 	local fn = builders[e.k]
 	if fn then
+		local before = #geo:GetChildren()
 		fn(geo, e, style)
+		-- Отделка (окна, карнизы, рёбра контейнеров...) по только что созданным деталям.
+		if DecorConfig.Detail then
+			local all = geo:GetChildren()
+			local created = table.move(all, before + 1, #all, 1, {})
+			local ok, err = pcall(Detailer.element, geo, e, currentMapId, created)
+			if not ok then
+				warn("[MapBuilder] Отделка элемента:", err)
+			end
+		end
 	else
 		warn("[MapBuilder] Неизвестный элемент карты: " .. tostring(e.k))
 	end
@@ -695,6 +709,7 @@ function MapBuilder.build(mapId: string): Folder
 	assert(cfg, "Нет карты " .. tostring(mapId))
 	local filler = cfg.Filler
 	local style = Random.new(filler and filler.Seed or 1) -- только цвета, на расстановку не влияет
+	currentMapId = mapId
 
 	workspace.Terrain:Clear()
 
@@ -834,6 +849,19 @@ function MapBuilder.build(mapId: string): Folder
 				end
 				occ:addCircle(x, z, radius)
 				placed += 1
+			end
+		end
+	end
+
+	-- Отделка всей карты: тротуары, стены баз, фонари, деревья и мелочь. Поиск свободных мест
+	-- идёт через пространственные запросы, поэтому карта уже должна быть в Workspace.
+	-- Генератор случайных чисел у отделки свой: расстановка построек и схема карты не меняются.
+	if DecorConfig.Detail then
+		map.Parent = workspace
+		for _, step in { "roads", "bases", "lamps", "scatter" } do
+			local ok, err = pcall((Detailer :: any)[step], geo, mapId)
+			if not ok then
+				warn("[MapBuilder] Отделка карты (" .. step .. "):", err)
 			end
 		end
 	end

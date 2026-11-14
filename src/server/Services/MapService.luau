@@ -14,6 +14,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local MapsConfig = require(Shared.Config.Maps)
 local MapBuilder = require(script.Parent.Parent:WaitForChild("World"):WaitForChild("MapBuilder"))
+local Ambience = require(script.Parent.Parent:WaitForChild("World"):WaitForChild("Ambience"))
 
 local ENEMY_BASE_DPS = 25 -- урон в секунду чужаку на базе
 
@@ -43,6 +44,7 @@ local function load(mapId: string): Folder
 	local t = os.clock()
 	local map = MapBuilder.build(mapId)
 	print(string.format("[MapService] Карта «%s» собрана за %.2f с", MapsConfig.List[mapId].Name, os.clock() - t))
+	Ambience.apply(mapId)
 	setCurrent(map)
 	return map
 end
