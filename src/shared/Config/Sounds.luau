@@ -1,34 +1,47 @@
 -- Звуки оружия и шагов.
--- Сейчас стоят встроенные звуки клиента Roblox (rbxasset://), чтобы было хоть что-то.
--- Настоящие звуки выстрелов: Creator Store → Audio, поиск «gunshot», «rifle», «pistol», «reload»
--- (бесплатные, лучше от автора Roblox). Скопируйте Id и впишите сюда в виде "rbxassetid://123456".
+-- Это бесплатные звуки из Creator Store (Audio). Чтобы заменить звук: найдите в Creator Store → Audio
+-- нужный (например «rifle shot»), скопируйте Id и впишите сюда в виде "rbxassetid://123456".
+-- В комментарии рядом — название звука в магазине и автор, чтобы его можно было найти.
 local Sounds = {}
 
-local SHOT = "rbxasset://sounds/paintball.wav"
+local function id(n: number): string
+	return "rbxassetid://" .. n
+end
 
 -- Выстрел: звук, громкость, высота тона (меньше 1 — ниже и «тяжелее»), дальность слышимости.
 Sounds.Shots = {
-	Rifle = { Id = SHOT, Volume = 0.9, Pitch = 0.75, Range = 350 },
-	SMG = { Id = SHOT, Volume = 0.8, Pitch = 0.95, Range = 250 },
-	Shotgun = { Id = SHOT, Volume = 1, Pitch = 0.5, Range = 300 },
-	LMG = { Id = SHOT, Volume = 1, Pitch = 0.6, Range = 400 },
-	Sniper = { Id = SHOT, Volume = 1, Pitch = 0.42, Range = 600 },
-	Pistol = { Id = SHOT, Volume = 0.8, Pitch = 1, Range = 250 },
-	Revolver = { Id = SHOT, Volume = 0.95, Pitch = 0.7, Range = 300 },
+	Rifle = { Id = id(18820743226), Volume = 0.9, Pitch = 1, Range = 350 }, -- Rifle Single Shot 2 (CBE_Simon)
+	SMG = { Id = id(134975275558568), Volume = 0.8, Pitch = 1.05, Range = 250 }, -- Rifle MP5 Single Shot (CBE_Simon)
+	Shotgun = { Id = id(71816202649396), Volume = 1, Pitch = 1, Range = 300 }, -- Shotgun Single Shot (CBE_Simon)
+	LMG = { Id = id(18820473061), Volume = 1, Pitch = 0.9, Range = 400 }, -- Rifle Single Shot 1, G3 (CBE_Simon)
+	Sniper = { Id = id(98063753863205), Volume = 1, Pitch = 1, Range = 600 }, -- Sniper Rifle Single Shot 1 (CBE_Simon)
+	Pistol = { Id = id(92967624763578), Volume = 0.8, Pitch = 1, Range = 250 }, -- Pistol Shot 1 (Dodfoz)
+	Revolver = { Id = id(1583819337), Volume = 0.95, Pitch = 1, Range = 300 }, -- Pistol / Revolver Shot (Kosty829)
 }
-Sounds.DefaultShot = { Id = SHOT, Volume = 0.8, Pitch = 0.8, Range = 300 }
+Sounds.DefaultShot = Sounds.Shots.Rifle
 
-Sounds.Melee = { Id = "rbxasset://sounds/swordslash.wav", Volume = 0.7, Pitch = 1, Range = 60 }
-Sounds.Reload = { Id = "rbxasset://sounds/clickfast.wav", Volume = 0.6, Pitch = 0.8, Range = 40 }
-Sounds.Empty = { Id = "rbxasset://sounds/snap.wav", Volume = 0.5, Pitch = 1.4, Range = 20 }
+-- Перезарядка у каждого оружия своя; если оружия нет в списке — Sounds.Reload.
+Sounds.Reloads = {
+	Rifle = { Id = id(140069224599018), Volume = 0.7, Pitch = 1, Range = 40 }, -- Assault Rifle Reloading Audio
+	SMG = { Id = id(139644400203673), Volume = 0.7, Pitch = 1, Range = 40 }, -- reload_smg
+	LMG = { Id = id(140069224599018), Volume = 0.75, Pitch = 0.85, Range = 40 },
+	Shotgun = { Id = id(139827026287805), Volume = 0.7, Pitch = 1, Range = 40 }, -- shotgun_reload
+	Sniper = { Id = id(4649193317), Volume = 0.7, Pitch = 1, Range = 40 }, -- sniper reload
+	Pistol = { Id = id(5445945972), Volume = 0.7, Pitch = 1, Range = 40 }, -- Glock Reload
+	Revolver = { Id = id(5445945972), Volume = 0.7, Pitch = 0.9, Range = 40 },
+}
+Sounds.Reload = Sounds.Reloads.Rifle
+
+Sounds.Melee = { Id = id(79732830869206), Volume = 0.7, Pitch = 1, Range = 60 } -- swing 2
+Sounds.Empty = { Id = id(136577938825060), Volume = 0.6, Pitch = 1, Range = 20 } -- DF1 (сухой щелчок)
 Sounds.HitMarker = { Id = "rbxasset://sounds/hit.wav", Volume = 0.4, Pitch = 1.6 }
 
--- Шаги: скорость и громкость звука бега в зависимости от темпа.
+-- Шаги: один зацикленный звук, темп и громкость меняются по скорости.
 Sounds.Footsteps = {
-	Id = "rbxasset://sounds/action_footsteps_plastic.mp3", -- стандартный звук шагов Roblox
-	Walk = { Speed = 1, Volume = 0.45 },
-	Sprint = { Speed = 1.45, Volume = 0.75 },
-	Crouch = { Speed = 0.7, Volume = 0.15 },
+	Id = id(133025205699213), -- run2concrete (sydwexx)
+	Walk = { Speed = 0.75, Volume = 0.4 },
+	Sprint = { Speed = 1.05, Volume = 0.65 },
+	Crouch = { Speed = 0.55, Volume = 0.12 },
 	Range = 70,
 }
 
