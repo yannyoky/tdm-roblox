@@ -8,6 +8,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Progression = require(Shared.Config.Progression)
 local Weapons = require(Shared.Config.Weapons)
+local SettingsConfig = require(Shared.Config.Settings)
+local HttpService = game:GetService("HttpService")
 
 local STORE_NAME = "PlayerData_v1"
 local AUTOSAVE_INTERVAL = 120
@@ -32,6 +34,9 @@ local DEFAULT_DATA = {
 	Title = "", -- выбранный титул
 	Rating = 1000,
 	RatedMatches = 0,
+	OwnedSkins = {}, -- скины, купленные за монеты или полученные в сезоне
+	Skin = { Bandits = "b_street", Gov = "g_patrol" }, -- выбранный скин каждой стороны
+	Settings = {}, -- настройки управления и экрана (см. Config/Settings)
 }
 
 type Profile = { data: { [string]: any }, canSave: boolean }
@@ -93,6 +98,7 @@ local function refreshStats(player: Player)
 	player:SetAttribute("Coins", data.Coins)
 	player:SetAttribute("XPBoostUntil", data.XPBoostUntil)
 	player:SetAttribute("Inventory", table.concat(data.Inventory, ","))
+	player:SetAttribute("Settings", HttpService:JSONEncode(data.Settings))
 end
 
 local function createStats(player: Player)
@@ -213,6 +219,25 @@ function DataService.setInventoryItem(player: Player, itemId: string, enabled: b
 	end
 	refreshStats(player)
 	return true
+end
+
+-- Сохранить настройки. Неизвестные ключи и значения вне диапазона отбрасываются.
+function DataService.setSettings(player: Player, settings: any)
+	local data = DataService.get(player)
+	if not data or type(settings) ~= "table" then
+		return
+	end
+	for key, value in settings do
+		local def = type(key) == "string" and SettingsConfig.List[key]
+		if def then
+			if def.Type == "Number" and type(value) == "number" and value == value then
+				data.Settings[key] = math.clamp(value, def.Min, def.Max)
+			elseif def.Type == "Toggle" and type(value) == "boolean" then
+				data.Settings[key] = value
+			end
+		end
+	end
+	refreshStats(player)
 end
 
 function DataService.addCoins(player: Player, amount: number)

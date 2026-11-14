@@ -150,38 +150,25 @@ function Hud.init()
 	}, { make("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 4) }) })
 	feed.Parent = gui
 
-	-- Магазин.
-	local shopButton = button("Магазин", UDim2.new(0, 120, 0, 36))
-	shopButton.AnchorPoint = Vector2.new(0, 0)
-	shopButton.Position = UDim2.new(0, 12, 0, 60)
-	shopButton.Parent = gui
-	local shopPanel = make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0, 340, 0, 330),
-		BackgroundColor3 = PANEL,
-		BackgroundTransparency = 0.1,
-		Visible = false,
-	}, {
-		corner(),
-		make("UIPadding", { PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }),
-		make("UIListLayout", { Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center }),
-	})
-	shopPanel.Parent = gui
-	shopButton.Activated:Connect(function()
-		shopPanel.Visible = not shopPanel.Visible
-	end)
+	-- Магазин (клавиша B).
+	local Ui = require(script.Parent.Ui)
+	local Menus = require(script.Parent.Menus)
+	local shopWindow, shopPanel, shopClose = Ui.window("Магазин", UDim2.new(0, 360, 0, 380))
+	shopClose.Activated:Connect(Menus.close)
+	Menus.register("Shop", { title = "Магазин", key = Enum.KeyCode.B, order = 5, panel = shopWindow })
 
 	local shopItems = {
 		{ text = "VIP: +25% опыта и монет", pass = Shop.GamePasses.VIP.Id },
+		{ text = "Набор премиум-скинов", pass = Shop.GamePasses.SkinPack.Id },
 	}
 	for _, product in Shop.Products do
 		local text = if product.Coins then string.format("%d монет", product.Coins) else "x2 опыта на 1 час"
 		table.insert(shopItems, { text = text, product = product.Id })
 	end
-	for _, item in shopItems do
+	for i, item in shopItems do
 		local id = item.pass or item.product
 		local b = button(if id == 0 then item.text .. " (скоро)" else item.text, UDim2.new(1, 0, 0, 40))
+		b.LayoutOrder = i
 		b.Activated:Connect(function()
 			if id == 0 then
 				return
@@ -194,11 +181,6 @@ function Hud.init()
 		end)
 		b.Parent = shopPanel
 	end
-	local closeButton = button("Закрыть", UDim2.new(0.5, 0, 0, 34))
-	closeButton.Activated:Connect(function()
-		shopPanel.Visible = false
-	end)
-	closeButton.Parent = shopPanel
 
 	-- Обновление по состоянию матча.
 	local function refresh()

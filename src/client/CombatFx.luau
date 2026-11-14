@@ -95,6 +95,37 @@ function CombatFx.init()
 		armor.Text = string.format("Броня %d", math.floor(points))
 	end)
 
+	-- Тряска камеры при получении урона (выключается в настройках).
+	local PlayerSettings = require(script.Parent.PlayerSettings)
+	local shake = 0
+	local lastHealth: { [Humanoid]: number } = setmetatable({}, { __mode = "k" }) :: any
+	local function watchHumanoid(char: Model)
+		local hum = char:WaitForChild("Humanoid", 5) :: Humanoid?
+		if not hum then
+			return
+		end
+		lastHealth[hum] = hum.Health
+		hum.HealthChanged:Connect(function(health)
+			local prev = lastHealth[hum] or health
+			lastHealth[hum] = health
+			if health < prev and health > 0 and PlayerSettings.get("ScreenShake") then
+				shake = math.min(1, shake + (prev - health) / 40)
+			end
+		end)
+	end
+	player.CharacterAdded:Connect(watchHumanoid)
+	if player.Character then
+		task.spawn(watchHumanoid, player.Character)
+	end
+	RunService:BindToRenderStep("DamageShake", Enum.RenderPriority.Camera.Value + 1, function(dt)
+		if shake <= 0 then
+			return
+		end
+		local a = math.rad(1.5) * shake
+		workspace.CurrentCamera.CFrame *= CFrame.Angles((math.random() - 0.5) * a, (math.random() - 0.5) * a, 0)
+		shake = math.max(0, shake - dt * 4)
+	end)
+
 	-- Подсказку «Поднять» видят только союзники раненого (Enabled меняем только у себя на клиенте).
 	local function checkPrompt(inst: Instance)
 		if inst:IsA("ProximityPrompt") and inst.Name == "RevivePrompt" then

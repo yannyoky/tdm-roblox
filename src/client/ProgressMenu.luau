@@ -8,12 +8,13 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Meta = require(Shared.Config.Meta)
 local Teams = require(Shared.Config.Teams)
 local Shop = require(Shared.Config.Shop)
+local Ui = require(script.Parent.Ui)
+local Menus = require(script.Parent.Menus)
 
 local player = Players.LocalPlayer
 
 local ProgressMenu = {}
 
-local PANEL = Color3.fromRGB(20, 20, 26)
 local CARD = Color3.fromRGB(38, 38, 48)
 local WHITE = Color3.new(1, 1, 1)
 local GREY = Color3.fromRGB(190, 190, 200)
@@ -68,42 +69,9 @@ local function decode(json: string?)
 end
 
 function ProgressMenu.init()
-	local gui = make("ScreenGui", { Name = "ProgressMenu", ResetOnSpawn = false })
-	local openButton = make("TextButton", {
-		Position = UDim2.new(0, 12, 0, 144),
-		Size = UDim2.new(0, 120, 0, 36),
-		BackgroundColor3 = Color3.fromRGB(45, 45, 55),
-		TextColor3 = WHITE,
-		Font = Enum.Font.GothamBold,
-		TextScaled = true,
-		Text = "Прогресс",
-	}, { make("UICorner", { CornerRadius = UDim.new(0, 6) }) })
-	openButton.Parent = gui
-
-	local panel = make("ScrollingFrame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0, 400, 0.8, 0),
-		BackgroundColor3 = PANEL,
-		BackgroundTransparency = 0.05,
-		Visible = false,
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		CanvasSize = UDim2.new(),
-		ScrollBarThickness = 6,
-	}, {
-		make("UICorner", { CornerRadius = UDim.new(0, 8) }),
-		make("UIPadding", {
-			PaddingTop = UDim.new(0, 12),
-			PaddingBottom = UDim.new(0, 12),
-			PaddingLeft = UDim.new(0, 12),
-			PaddingRight = UDim.new(0, 16),
-		}),
-		make("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
-	})
-	panel.Parent = gui
-	openButton.Activated:Connect(function()
-		panel.Visible = not panel.Visible
-	end)
+	local window, panel, close = Ui.window("Прогресс", UDim2.new(0, 420, 0.8, 0))
+	close.Activated:Connect(Menus.close)
+	Menus.register("Progress", { title = "Прогресс", key = Enum.KeyCode.J, order = 4, panel = window })
 
 	local leaderboards = ReplicatedStorage:WaitForChild("Leaderboards") :: StringValue
 
@@ -214,20 +182,18 @@ function ProgressMenu.init()
 		pending = true
 		task.delay(0.2, function()
 			pending = false
-			if panel.Visible then
+			if window.Visible then
 				rebuild()
 			end
 		end)
 	end
 	player.AttributeChanged:Connect(scheduleRebuild)
 	leaderboards.Changed:Connect(scheduleRebuild)
-	panel:GetPropertyChangedSignal("Visible"):Connect(function()
-		if panel.Visible then
+	window:GetPropertyChangedSignal("Visible"):Connect(function()
+		if window.Visible then
 			rebuild()
 		end
 	end)
-
-	gui.Parent = player:WaitForChild("PlayerGui")
 end
 
 return ProgressMenu

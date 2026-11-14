@@ -11,6 +11,9 @@ return {
 		SeasonPass = {
 			Id = 0, -- 399 R$, премиум-дорожка сезонного пропуска
 		},
+		SkinPack = {
+			Id = 0, -- 249 R$, премиум-скины обеих сторон (Config/Skins, Unlock.Type = "Pass")
+		},
 	},
 
 	Products = {

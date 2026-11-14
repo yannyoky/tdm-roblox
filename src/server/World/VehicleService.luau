@@ -282,7 +282,7 @@ local function setupVehicle(model: Model, record: PadRecord?)
 			end
 		end
 	end)
-	local flip = prompt(chassis, "Перевернуть", name, Enum.KeyCode.G, Vector2.new(0, 160))
+	local flip = prompt(chassis, "Перевернуть", name, Enum.KeyCode.T, Vector2.new(0, 160))
 	flip.HoldDuration = 1
 	flip.Enabled = false
 	flip.Triggered:Connect(function(player)

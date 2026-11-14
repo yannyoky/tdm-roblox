@@ -15,6 +15,7 @@ local Net = require(Shared.Net)
 
 local DamageService = require(script.Parent.DamageService)
 local GrenadeService = require(script.Parent.GrenadeService)
+local WeaponModels = require(script.Parent.WeaponModels)
 
 local MAX_ORIGIN_OFFSET = 8 -- насколько точка выстрела может отличаться от головы
 local FIRE_RATE_TOLERANCE = 0.8 -- запас на сетевые задержки
@@ -71,15 +72,7 @@ function WeaponService.makeTool(id: string): Tool?
 		tool.Name = string.format("%s x%d", def.DisplayName, def.Count)
 	end
 
-	local handle = Instance.new("Part")
-	handle.Name = "Handle"
-	handle.Size = def.HandleSize or Vector3.new(0.4, 0.8, 2)
-	handle.Color = def.Color or Color3.fromRGB(40, 40, 40)
-	handle.CanCollide = false
-	handle.CanQuery = false
-	handle.CanTouch = false
-	handle.Massless = true
-	handle.Parent = tool
+	WeaponModels.build(tool, id, def)
 	return tool
 end
 
@@ -285,11 +278,15 @@ function WeaponService.fire(shooter, char: Model?, weaponId: string, origin: Vec
 		return true
 	end
 
+	-- Попадание считается от головы, а трассер рисуется от дула модели, если оно есть.
+	local handle = tool:FindFirstChild("Handle")
+	local muzzle = handle and handle:FindFirstChild("Muzzle")
+	local fxOrigin = if muzzle and muzzle:IsA("Attachment") then muzzle.WorldPosition else origin
 	local fx = Net.get("ShotFx")
-	for _ = 1, def.Pellets or 1 do
+	for i = 1, def.Pellets or 1 do
 		local dir = applySpread(unit, def.Spread or 0)
 		local endPos, hitSomething = traceBullet(shooter, char, def, weaponId, origin, dir)
-		fx:FireAllClients(origin, endPos, def.Melee == true, hitSomething)
+		fx:FireAllClients(fxOrigin, endPos, def.Melee == true, hitSomething, i == 1)
 	end
 	return true
 end

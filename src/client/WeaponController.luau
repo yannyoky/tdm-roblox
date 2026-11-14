@@ -9,6 +9,7 @@ local Debris = game:GetService("Debris")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Weapons = require(Shared.Config.Weapons)
 local Net = require(Shared.Net)
+local PlayerSettings = require(script.Parent.PlayerSettings)
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
@@ -149,8 +150,17 @@ function WeaponController.init()
 
 	-- Прицел снайперской винтовки: правая кнопка мыши (или кнопка на экране) приближает.
 	local camera = workspace.CurrentCamera
-	local normalFov = camera.FieldOfView
+	local normalFov = PlayerSettings.get("FieldOfView")
 	local zoomed = false
+	camera.FieldOfView = normalFov
+	PlayerSettings.onChanged(function(key, value)
+		if key == "FieldOfView" then
+			normalFov = value
+			if not zoomed then
+				camera.FieldOfView = value
+			end
+		end
+	end)
 	local function setZoom(on: boolean)
 		local _, def = currentDef()
 		on = on and def ~= nil and def.Zoom ~= nil
@@ -159,6 +169,7 @@ function WeaponController.init()
 		end
 		zoomed = on
 		camera.FieldOfView = if on then def.Zoom else normalFov
+		PlayerSettings.setAiming(on)
 	end
 	ContextActionService:BindAction("Aim", function(_, inputState)
 		if inputState == Enum.UserInputState.Begin then
@@ -194,9 +205,30 @@ function WeaponController.init()
 		Debris:AddItem(p, lifetime)
 	end
 
-	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, isMelee: boolean, hitSomething: boolean)
+	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, isMelee: boolean, hitSomething: boolean, flash: boolean?)
 		if isMelee then
 			return
+		end
+		-- Вспышка у дула (одна на выстрел, даже у дробовика).
+		if flash then
+			local p = Instance.new("Part")
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Material = Enum.Material.Neon
+			p.Color = Color3.fromRGB(255, 200, 90)
+			p.Shape = Enum.PartType.Ball
+			p.Size = Vector3.new(0.45, 0.45, 0.45)
+			p.Position = origin
+			local light = Instance.new("PointLight")
+			light.Color = p.Color
+			light.Range = 10
+			light.Brightness = 3
+			light.Parent = p
+			p.Parent = workspace
+			Debris:AddItem(p, 0.05)
 		end
 		local distance = (endPos - origin).Magnitude
 		if distance >= 0.5 then

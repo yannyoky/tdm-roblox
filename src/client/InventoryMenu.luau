@@ -6,12 +6,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared.Net)
 local Weapons = require(Shared.Config.Weapons)
+local Ui = require(script.Parent.Ui)
+local Menus = require(script.Parent.Menus)
 
 local player = Players.LocalPlayer
 
 local InventoryMenu = {}
 
-local PANEL = Color3.fromRGB(20, 20, 26)
 local ON = Color3.fromRGB(60, 140, 80)
 local OFF = Color3.fromRGB(45, 45, 55)
 local LOCKED = Color3.fromRGB(30, 30, 34)
@@ -28,43 +29,9 @@ local function make(className: string, props: { [string]: any }, children: { Ins
 end
 
 function InventoryMenu.init()
-	local gui = make("ScreenGui", { Name = "InventoryMenu", ResetOnSpawn = false })
-
-	local openButton = make("TextButton", {
-		Position = UDim2.new(0, 12, 0, 102),
-		Size = UDim2.new(0, 120, 0, 36),
-		BackgroundColor3 = OFF,
-		TextColor3 = Color3.new(1, 1, 1),
-		Font = Enum.Font.GothamBold,
-		TextScaled = true,
-		Text = "Инвентарь",
-	}, { make("UICorner", { CornerRadius = UDim.new(0, 6) }) })
-	openButton.Parent = gui
-
-	local panel = make("ScrollingFrame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0, 360, 0, 420),
-		BackgroundColor3 = PANEL,
-		BackgroundTransparency = 0.1,
-		Visible = false,
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		CanvasSize = UDim2.new(),
-		ScrollBarThickness = 6,
-	}, {
-		make("UICorner", { CornerRadius = UDim.new(0, 8) }),
-		make("UIPadding", {
-			PaddingTop = UDim.new(0, 10),
-			PaddingBottom = UDim.new(0, 10),
-			PaddingLeft = UDim.new(0, 10),
-			PaddingRight = UDim.new(0, 14),
-		}),
-		make("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
-	})
-	panel.Parent = gui
-	openButton.Activated:Connect(function()
-		panel.Visible = not panel.Visible
-	end)
+	local window, panel, close = Ui.window("Инвентарь", UDim2.new(0, 380, 0.75, 0))
+	close.Activated:Connect(Menus.close)
+	Menus.register("Inventory", { title = "Инвентарь", key = Enum.KeyCode.I, order = 2, panel = window })
 
 	local order = 0
 	local function nextOrder()
@@ -156,8 +123,6 @@ function InventoryMenu.init()
 		end
 	end)
 	refresh()
-
-	gui.Parent = player:WaitForChild("PlayerGui")
 end
 
 return InventoryMenu

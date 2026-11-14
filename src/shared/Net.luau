@@ -12,6 +12,12 @@ local REMOTES = {
 	"ShotFx", -- сервер → все: трассер (origin, endPos, isMelee, hitSomething)
 	"Flash", -- сервер → игрок: ослепление светошумовой (intensity 0..1)
 	"SetInventoryItem", -- клиент → сервер: взять/убрать предмет (itemId, enabled)
+	"EquipSkin", -- клиент → сервер: выбрать скин (skinId)
+	"BuySkin", -- клиент → сервер: купить скин за монеты (skinId)
+	"SaveSettings", -- клиент → сервер: настройки ({ [key] = value })
+	"Play", -- клиент → сервер: нажал «Играть» в главном меню (preferredTeam: "Bandits" | "Gov" | "Any")
+	"Crouch", -- клиент → сервер: присесть или встать (on)
+	"Died", -- сервер → игрок: экран смерти (killerName?, weaponId?, respawnIn?, killerHealth?)
 }
 
 local folder: Folder

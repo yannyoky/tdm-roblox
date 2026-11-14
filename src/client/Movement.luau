@@ -13,6 +13,8 @@ local ContextActionService = game:GetService("ContextActionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Movement"))
+local CrouchPose = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("CrouchPose"))
+local Net = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Net"))
 local SPRINT = Config.Sprint
 local PARKOUR = Config.Parkour
 
@@ -27,6 +29,9 @@ local lastSprintTime = 0
 local busy = false
 local lastParkour = 0
 local baseSpeed = 16
+local crouching = false
+local crouchDrop = 0
+local CROUCH_SPEED = 0.5 -- доля обычной скорости в приседе
 
 local staminaFill: Frame
 local staminaBar: Frame
@@ -42,9 +47,46 @@ local function getParts()
 end
 
 ------------------------------------------------------------------------
+-- Присед: C (геймпад — B, телефон — кнопка «Присесть»). Меньше скорость и силуэт.
+
+local function setCrouch(on: boolean)
+	local char, hum = getParts()
+	if not char then
+		crouching = false
+		return
+	end
+	if on and (hum.SeatPart or char:GetAttribute("Downed") or char:GetAttribute("InLobby") or not CrouchPose.supported(char)) then
+		return
+	end
+	if on == crouching then
+		return
+	end
+	crouching = on
+	if on then
+		crouchDrop = CrouchPose.drop(char)
+		hum.HipHeight -= crouchDrop
+	else
+		hum.HipHeight += crouchDrop
+		crouchDrop = 0
+	end
+	CrouchPose.set(char, on)
+	Net.get("Crouch"):FireServer(on)
+end
+
+local function onCrouchAction(_, inputState: Enum.UserInputState)
+	if inputState == Enum.UserInputState.Begin then
+		setCrouch(not crouching)
+	end
+	return Enum.ContextActionResult.Pass
+end
+
+------------------------------------------------------------------------
 -- Бег
 
 local function onSprintAction(_, inputState: Enum.UserInputState, input: InputObject)
+	if inputState == Enum.UserInputState.Begin and crouching then
+		setCrouch(false) -- бег поднимает из приседа
+	end
 	if input.UserInputType == Enum.UserInputType.Touch then
 		if inputState == Enum.UserInputState.Begin then
 			wantSprint = not wantSprint
@@ -65,7 +107,10 @@ local function updateSprint(dt: number)
 		return
 	end
 	local moving = hum.MoveDirection.Magnitude > 0.1
-	local canSprint = wantSprint and moving and not exhausted and not busy and hum.SeatPart == nil
+	if crouching and (hum.SeatPart or char:GetAttribute("Downed")) then
+		setCrouch(false)
+	end
+	local canSprint = wantSprint and moving and not crouching and not exhausted and not busy and hum.SeatPart == nil
 		and hum:GetState() ~= Enum.HumanoidStateType.Climbing and not char:GetAttribute("InLobby")
 		and not char:GetAttribute("Downed")
 
@@ -83,9 +128,12 @@ local function updateSprint(dt: number)
 	end
 
 	local sprintSpeed = baseSpeed * SPRINT.Multiplier
+	local crouchSpeed = baseSpeed * CROUCH_SPEED
 	if canSprint then
 		hum.WalkSpeed = sprintSpeed
-	elseif hum.WalkSpeed == sprintSpeed then
+	elseif crouching then
+		hum.WalkSpeed = crouchSpeed
+	elseif hum.WalkSpeed == sprintSpeed or hum.WalkSpeed == crouchSpeed then
 		hum.WalkSpeed = baseSpeed
 	end
 	char:SetAttribute("Stamina", math.floor(stamina))
@@ -322,6 +370,8 @@ end
 local function onCharacter(char: Model)
 	local hum = char:WaitForChild("Humanoid") :: Humanoid
 	baseSpeed = hum.WalkSpeed
+	crouching = false
+	crouchDrop = 0
 	stamina = SPRINT.StaminaMax
 	exhausted = false
 	busy = false
@@ -333,7 +383,14 @@ function Movement.init()
 	ContextActionService:SetTitle("Sprint", "Бег")
 	ContextActionService:SetPosition("Sprint", UDim2.new(1, -170, 1, -150))
 
+	ContextActionService:BindAction("Crouch", onCrouchAction, true, Enum.KeyCode.C, Enum.KeyCode.ButtonB)
+	ContextActionService:SetTitle("Crouch", "Присесть")
+	ContextActionService:SetPosition("Crouch", UDim2.new(1, -240, 1, -150))
+
 	UserInputService.JumpRequest:Connect(function()
+		if crouching then
+			setCrouch(false) -- прыжок поднимает из приседа
+		end
 		task.spawn(tryParkour)
 	end)
 	RunService.Heartbeat:Connect(updateSprint)
