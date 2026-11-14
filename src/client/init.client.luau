@@ -18,6 +18,7 @@ local CameraView = require(script:WaitForChild("CameraView"))
 local Footsteps = require(script:WaitForChild("Footsteps"))
 local Minimap = require(script:WaitForChild("Minimap"))
 local Viewmodel = require(script:WaitForChild("Viewmodel"))
+local WeaponPose = require(script:WaitForChild("WeaponPose"))
 
 -- Настройки и система окон нужны остальным модулям, поэтому запускаются первыми.
 PlayerSettings.init()
@@ -40,3 +41,4 @@ task.spawn(CameraView.init)
 task.spawn(Footsteps.init)
 task.spawn(Minimap.init)
 task.spawn(Viewmodel.init)
+task.spawn(WeaponPose.init)

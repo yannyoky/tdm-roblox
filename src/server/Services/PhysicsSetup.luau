@@ -16,6 +16,15 @@ function PhysicsSetup.init()
 	PhysicsService:CollisionGroupSetCollidable(CHARACTER_GROUP, CHARACTER_GROUP, false)
 
 	-- Присед: клиент просит, сервер ставит позу, чтобы её видели все и опустились хитбоксы.
+	-- Наклон прицела игрока: по нему другие клиенты поднимают и опускают руки с оружием.
+	Net.get("AimPitch").OnServerEvent:Connect(function(player, pitch)
+		local char = player.Character
+		if typeof(pitch) ~= "number" or pitch ~= pitch or not char then
+			return
+		end
+		char:SetAttribute("AimPitch", math.floor(math.clamp(pitch, -80, 80) + 0.5))
+	end)
+
 	Net.get("Crouch").OnServerEvent:Connect(function(player, on)
 		local char = player.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
