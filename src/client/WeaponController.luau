@@ -87,7 +87,8 @@ function WeaponController.init()
 		tool:GetAttributeChangedSignal("Reloading"):Connect(function()
 			local handle = tool:FindFirstChild("Handle")
 			if tool:GetAttribute("Reloading") and handle and handle:IsA("BasePart") then
-				Audio.at(Audio.Config.Reload, handle.Position)
+				local wid = tool:GetAttribute("WeaponId")
+				Audio.at(Audio.Config.Reloads[wid] or Audio.Config.Reload, handle.Position)
 			end
 		end)
 		tool.Equipped:Connect(function()

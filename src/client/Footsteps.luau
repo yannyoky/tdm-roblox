@@ -1,5 +1,5 @@
 -- Шаги: темп и громкость зависят от скорости. Бег громче и чаще, присед тише и реже.
--- У игроков подстраивается стандартный звук Roblox (HumanoidRootPart.Running),
+-- У игроков подменяется и подстраивается стандартный звук Roblox (HumanoidRootPart.Running),
 -- ботам свой звук шагов добавляем сами, иначе они ходят бесшумно.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -86,6 +86,10 @@ function Footsteps.init()
 			local root = char and char:FindFirstChild("HumanoidRootPart")
 			local running = root and root:FindFirstChild("Running")
 			if running and running:IsA("Sound") then
+				-- Стандартный пластиковый звук Roblox меняем на свой.
+				if running.SoundId ~= Config.Id then
+					running.SoundId = Config.Id
+				end
 				update(char :: Model, running, false)
 			end
 		end

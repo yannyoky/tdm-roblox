@@ -26,7 +26,11 @@ function Audio.at(cfg: Cfg?, position: Vector3)
 	s.RollOffMaxDistance = cfg.Range or 200
 	s.Parent = anchor
 	s:Play()
-	Debris:AddItem(anchor, 3)
+	-- Убираем после окончания звука (длинные выстрелы снайперки идут дольше 3 секунд).
+	Debris:AddItem(anchor, 8)
+	s.Ended:Once(function()
+		anchor:Destroy()
+	end)
 end
 
 -- Звук без положения (интерфейс, свои действия).
