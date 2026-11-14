@@ -142,6 +142,8 @@ local function explode(model: Model, record: PadRecord?)
 	for _, d in model:GetDescendants() do
 		if d:IsA("ProximityPrompt") then
 			d.Enabled = false
+		elseif d:IsA("SpecialMesh") then
+			d.VertexColor = Vector3.new(0.25, 0.25, 0.25) -- обгоревший кузов из меша
 		elseif d:IsA("BasePart") and d.Transparency < 1 then
 			d.Color = d.Color:Lerp(Color3.fromRGB(20, 20, 20), 0.8)
 			d.Material = Enum.Material.CorrodedMetal

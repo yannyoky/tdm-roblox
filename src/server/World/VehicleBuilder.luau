@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local VehiclesConfig = require(Shared.Config.Vehicles)
 local TeamsConfig = require(Shared.Config.Teams)
+local VehicleMeshes = require(script.Parent.VehicleMeshes)
 
 local VehicleBuilder = {}
 
@@ -142,6 +143,50 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 		blue:SetAttribute("Siren", "blue")
 	end
 
+	-- Готовый кузов из мешей (VehicleMeshes): детали выше становятся невидимой оболочкой.
+	local meshDef = VehicleMeshes[typeId]
+	local seatDrop = 0
+	if meshDef then
+		local ground = -(R + 0.6) -- низ колёс относительно центра шасси
+		local bodyCf = rootCf * CFrame.new(0, ground + meshDef.size.Y / 2, 0)
+		for _, part in model:GetChildren() do
+			if part:IsA("BasePart") and part.Name ~= "LightBar" and part.Name ~= "TeamStripe" then
+				part.Transparency = 1
+			end
+		end
+		for i, piece in meshDef.parts do
+			local p = Instance.new("Part")
+			p.Name = "BodyMesh" .. i
+			p.Size = Vector3.new(0.4, 0.4, 0.4)
+			p.CFrame = bodyCf * CFrame.new(piece.pos) * CFrame.Angles(0, math.rad(piece.yaw or 0), 0)
+			p.Massless = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			local mesh = Instance.new("SpecialMesh")
+			mesh.MeshType = Enum.MeshType.FileMesh
+			mesh.MeshId = "rbxassetid://" .. piece.mesh
+			if piece.tex then
+				mesh.TextureId = "rbxassetid://" .. piece.tex
+			end
+			mesh.Scale = piece.scale
+			mesh.Parent = p
+			p.Parent = model
+			weld(chassis, p)
+		end
+		-- Полоса команды и мигалка — на крышу меша.
+		local roof = meshDef.roof
+		for _, part in model:GetChildren() do
+			if part:IsA("BasePart") and (part.Name == "TeamStripe" or part.Name == "LightBar") then
+				local local_ = rootCf:ToObjectSpace(part.CFrame)
+				local y = ground + roof.y + (if part.Name == "TeamStripe" then 0.05 else 0.25)
+				local z = roof.z + (if part.Name == "LightBar" then -1.2 else 0.6)
+				part.CFrame = rootCf * CFrame.new(local_.X, y, z)
+			end
+		end
+		seatDrop = 0.4 -- кузов ниже коробочного: садимся ниже, чтобы голова не торчала из крыши
+	end
+
 	-- Сиденья: первое — водительское (VehicleSeat даёт газ/руль с клавиатуры, геймпада и телефона).
 	for i, offset in cfg.Seats do
 		local seat: Seat | VehicleSeat
@@ -157,8 +202,11 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 			seat.Name = "Seat" .. i
 		end
 		seat.Size = Vector3.new(2, 0.6, 2)
-		seat.CFrame = rootCf * CFrame.new(offset)
+		seat.CFrame = rootCf * CFrame.new(offset - Vector3.new(0, seatDrop, 0))
 		seat.Color = DARK
+		if meshDef then
+			seat.Transparency = 1
+		end
 		seat.Massless = true
 		seat.TopSurface = Enum.SurfaceType.Smooth
 		seat.Parent = model
@@ -191,6 +239,9 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 		wheel.Color = DARK
 		wheel.Material = Enum.Material.Fabric
 		wheel.CustomPhysicalProperties = wheelProps
+		if meshDef then
+			wheel.Transparency = 1 -- колёса нарисованы в меше кузова
+		end
 		wheel.Parent = model
 		local wheelAtt = attachment(wheel, "Axle", CFrame.new())
 
