@@ -36,12 +36,22 @@ Sounds.Melee = { Id = id(79732830869206), Volume = 0.7, Pitch = 1, Range = 60 } 
 Sounds.Empty = { Id = id(136577938825060), Volume = 0.6, Pitch = 1, Range = 20 } -- DF1 (сухой щелчок)
 Sounds.HitMarker = { Id = "rbxasset://sounds/hit.wav", Volume = 0.4, Pitch = 1.6 }
 
--- Шаги: один зацикленный звук, темп и громкость меняются по скорости.
+-- Шаги: отдельный звук на каждое касание стопы (варианты чередуются, чтобы не звучало одинаково).
+-- Звучат в такт анимации: шаг — когда стопа опускается на землю.
 Sounds.Footsteps = {
-	Id = id(133025205699213), -- run2concrete (sydwexx)
-	Walk = { Speed = 0.75, Volume = 0.4 },
-	Sprint = { Speed = 1.05, Volume = 0.65 },
-	Crouch = { Speed = 0.55, Volume = 0.12 },
+	Ids = { -- Black Laboratory concrete footstep 1–8 (Diman_x86)
+		id(104345504554799),
+		id(70639393862430),
+		id(108290664490396),
+		id(96955798612091),
+		id(120195545352847),
+		id(78982375383648),
+		id(112000835797556),
+		id(106961831442199),
+	},
+	Walk = { Volume = 0.45, Pitch = 1 },
+	Sprint = { Volume = 0.7, Pitch = 1.05 },
+	Crouch = { Volume = 0.15, Pitch = 0.9 },
 	Range = 70,
 }
 
