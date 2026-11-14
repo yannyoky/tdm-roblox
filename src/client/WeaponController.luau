@@ -205,9 +205,30 @@ function WeaponController.init()
 		Debris:AddItem(p, lifetime)
 	end
 
-	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, isMelee: boolean, hitSomething: boolean)
+	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, isMelee: boolean, hitSomething: boolean, flash: boolean?)
 		if isMelee then
 			return
+		end
+		-- Вспышка у дула (одна на выстрел, даже у дробовика).
+		if flash then
+			local p = Instance.new("Part")
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Material = Enum.Material.Neon
+			p.Color = Color3.fromRGB(255, 200, 90)
+			p.Shape = Enum.PartType.Ball
+			p.Size = Vector3.new(0.45, 0.45, 0.45)
+			p.Position = origin
+			local light = Instance.new("PointLight")
+			light.Color = p.Color
+			light.Range = 10
+			light.Brightness = 3
+			light.Parent = p
+			p.Parent = workspace
+			Debris:AddItem(p, 0.05)
 		end
 		local distance = (endPos - origin).Magnitude
 		if distance >= 0.5 then
