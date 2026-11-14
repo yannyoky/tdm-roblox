@@ -1044,6 +1044,11 @@ local function think(bot, dt: number)
 
 	if bot.visible and targetPos then
 		bot.face = targetPos
+		-- Наклон рук с оружием на клиентах (WeaponPose).
+		local aimDir = targetPos - head.Position
+		if aimDir.Magnitude > 0.1 then
+			char:SetAttribute("AimPitch", math.floor(math.deg(math.asin(math.clamp(aimDir.Unit.Y, -1, 1))) + 0.5))
+		end
 		combatMove(bot, hum, root, def, targetPos, healthFrac, reloading, now, dt)
 		applySpeed(bot, hum, dt)
 		return
