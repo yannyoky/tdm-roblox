@@ -713,6 +713,8 @@ function MatchService.start()
 			return getTeamMembers(bot.TeamKey)
 		end,
 		isAlive = isActive,
+		teamOf = getTeamKey,
+		idOf = entityId,
 		getObjective = function(bot)
 			return if mode then mode:GetObjective(bot) else nil
 		end,

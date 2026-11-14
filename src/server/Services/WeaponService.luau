@@ -32,6 +32,9 @@ local TORSO_PARTS = { UpperTorso = true, LowerTorso = true, Torso = true, Humano
 
 local WeaponService = {}
 
+-- Вызывается после каждого выстрела: (стрелок, точка выстрела). Ставит BotService.
+WeaponService.onShot = nil :: ((any, Vector3) -> ())?
+
 local hooks = {
 	canDamage = function(_a, _v)
 		return false
@@ -259,6 +262,11 @@ function WeaponService.fire(shooter, char: Model?, weaponId: string, origin: Vec
 			return false
 		end
 		tool:SetAttribute("Ammo", ammo - 1)
+	end
+
+	-- Выстрел слышат боты врага поблизости.
+	if WeaponService.onShot and not def.Melee then
+		task.spawn(WeaponService.onShot, shooter, origin)
 	end
 
 	local unit = direction.Unit
