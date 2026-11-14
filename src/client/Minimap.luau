@@ -79,6 +79,7 @@ function Minimap.init()
 
 	local origin = Vector2.zero -- мировые X, Z левого верхнего угла слоя мира
 	local builtFor: Instance? = nil
+	local builtParts = 0 -- сколько деталей карты было на клиенте при последней сборке
 	local zoneFrames: { [string]: Frame } = {}
 
 	local function worldToLayer(x: number, z: number): UDim2
@@ -118,6 +119,7 @@ function Minimap.init()
 				table.insert(parts, inst)
 			end
 		end
+		builtParts = #parts
 		if minX == math.huge then
 			return
 		end
@@ -168,10 +170,22 @@ function Minimap.init()
 		end
 	end
 
-	-- Перестраиваем при смене карты.
+	-- Перестраиваем при смене карты, а также когда карта догрузилась
+	-- (при StreamingEnabled детали приходят на клиент не сразу).
+	local function countParts(map: Instance?): number
+		local n = 0
+		if map then
+			for _, inst in map:GetDescendants() do
+				if inst:IsA("BasePart") then
+					n += 1
+				end
+			end
+		end
+		return n
+	end
 	local function checkMap()
 		local map = workspace:FindFirstChild("Map")
-		if map ~= builtFor then
+		if map ~= builtFor or (map and math.abs(countParts(map) - builtParts) > 20) then
 			task.wait(0.5) -- дать карте догрузиться
 			rebuild(workspace:FindFirstChild("Map"))
 		end
