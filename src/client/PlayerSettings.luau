@@ -74,6 +74,10 @@ function PlayerSettings.setAiming(on: boolean)
 	applySensitivity()
 end
 
+function PlayerSettings.isAiming(): boolean
+	return aiming
+end
+
 function PlayerSettings.init()
 	local function load()
 		local json = player:GetAttribute("Settings")

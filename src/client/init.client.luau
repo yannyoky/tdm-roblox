@@ -17,6 +17,7 @@ local MainMenu = require(script:WaitForChild("MainMenu"))
 local CameraView = require(script:WaitForChild("CameraView"))
 local Footsteps = require(script:WaitForChild("Footsteps"))
 local Minimap = require(script:WaitForChild("Minimap"))
+local Viewmodel = require(script:WaitForChild("Viewmodel"))
 
 -- Настройки и система окон нужны остальным модулям, поэтому запускаются первыми.
 PlayerSettings.init()
@@ -38,3 +39,4 @@ task.spawn(MainMenu.init)
 task.spawn(CameraView.init)
 task.spawn(Footsteps.init)
 task.spawn(Minimap.init)
+task.spawn(Viewmodel.init)
