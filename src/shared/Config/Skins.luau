@@ -1,6 +1,8 @@
--- Скины фракций: форма и снаряжение поверх аватара игрока.
--- Лицо, причёска и цвет кожи остаются от аватара, а одежда заменяется формой стороны,
--- чтобы своих и чужих было видно издалека.
+-- Скины сторон — готовые комплекты реалистичной 3D-одежды (layered clothing) из каталога Roblox.
+-- Вещи берутся из Config/Appearance.Clothing по id: Top, Bottom, Shoes, Hat (Hat можно не указывать).
+-- Игрок может заменить любую вещь комплекта в меню «Персонаж»; что не заменено — берётся из скина.
+-- Лицо, причёска и цвет кожи — из внешности игрока. Своих и чужих отличает стиль одежды
+-- (Банда — уличная, Силовики — форма и тактика) и цвет ника.
 --
 -- Unlock — как открыть скин:
 --   { Type = "Default" }                 -- есть у всех
@@ -9,11 +11,12 @@
 --   { Type = "Season", Tier = 10 }       -- уровень сезонного пропуска (бесплатная дорожка)
 --   { Type = "Pass", Pass = "SkinPack" } -- Game Pass из Config/Shop
 --
--- ShirtTemplate / PantsTemplate (необязательно) — id картинки классической одежды Roblox.
--- Она надевается поверх цветов Shirt/Pants. Взяты из бесплатных моделей Creator Store.
---
--- Gear — детали снаряжения: Vest, Helmet, Cap, Beanie, Bandana, Balaclava, Chain, Backpack, Visor.
+-- Shirt / Pants — только цвета значка в меню.
 local Skins = {}
+
+local function rgb(r, g, b)
+	return Color3.fromRGB(r, g, b)
+end
 
 Skins.List = {
 	-- Банда
@@ -21,69 +24,49 @@ Skins.List = {
 		Faction = "Bandits",
 		DisplayName = "Уличный",
 		Unlock = { Type = "Default" },
-		Shirt = Color3.fromRGB(120, 30, 30),
-		Pants = Color3.fromRGB(40, 40, 48),
-		Shoes = Color3.fromRGB(230, 230, 230),
-		Gear = { { Kind = "Bandana", Color = Color3.fromRGB(170, 30, 30) } },
+		Shirt = rgb(150, 30, 30),
+		Pants = rgb(60, 80, 120),
+		Outfit = { Top = "red_hoodie", Bottom = "jeans", Shoes = "sneakers_white" },
 	},
 	b_tracksuit = {
 		Faction = "Bandits",
-		DisplayName = "Спортивный костюм",
+		DisplayName = "Спортивный",
 		Unlock = { Type = "Rank", Rank = 2 },
-		Shirt = Color3.fromRGB(30, 30, 30),
-		Pants = Color3.fromRGB(30, 30, 30),
-		Shoes = Color3.fromRGB(240, 240, 240),
-		Gear = {
-			{ Kind = "Beanie", Color = Color3.fromRGB(25, 25, 25) },
-			{ Kind = "Chain", Color = Color3.fromRGB(230, 190, 60) },
-		},
+		Shirt = rgb(25, 25, 25),
+		Pants = rgb(30, 30, 30),
+		Outfit = { Top = "zip_hoodie", Bottom = "tracksuit_stripes", Shoes = "sneakers_white2", Hat = "beanie" },
 	},
 	b_leather = {
 		Faction = "Bandits",
 		DisplayName = "Кожанка",
 		Unlock = { Type = "Coins", Price = 600 },
-		Shirt = Color3.fromRGB(60, 40, 30),
-		Pants = Color3.fromRGB(35, 45, 70),
-		Shoes = Color3.fromRGB(40, 30, 25),
-		Gear = { { Kind = "Chain", Color = Color3.fromRGB(230, 190, 60) } },
+		Shirt = rgb(30, 25, 22),
+		Pants = rgb(25, 25, 30),
+		Outfit = { Top = "leather", Bottom = "jeans_black", Shoes = "work_tan" },
 	},
 	b_brigade = {
 		Faction = "Bandits",
 		DisplayName = "Бригада",
 		Unlock = { Type = "Rank", Rank = 4 },
-		Shirt = Color3.fromRGB(90, 20, 20),
-		Pants = Color3.fromRGB(25, 25, 25),
-		Shoes = Color3.fromRGB(20, 20, 20),
-		Gear = {
-			{ Kind = "Balaclava", Color = Color3.fromRGB(20, 20, 20) },
-			{ Kind = "Vest", Color = Color3.fromRGB(50, 50, 45) },
-		},
+		Shirt = rgb(20, 20, 20),
+		Pants = rgb(35, 35, 35),
+		Outfit = { Top = "puffer_black", Bottom = "cargo_black", Shoes = "running", Hat = "ski_mask" },
 	},
 	b_season = {
 		Faction = "Bandits",
 		DisplayName = "Передел (сезон 1)",
 		Unlock = { Type = "Season", Tier = 20 },
-		Shirt = Color3.fromRGB(200, 140, 30),
-		Pants = Color3.fromRGB(30, 30, 30),
-		Shoes = Color3.fromRGB(200, 140, 30),
-		Gear = {
-			{ Kind = "Cap", Color = Color3.fromRGB(30, 30, 30) },
-			{ Kind = "Bandana", Color = Color3.fromRGB(200, 140, 30) },
-		},
+		Shirt = rgb(120, 120, 125),
+		Pants = rgb(30, 30, 30),
+		Outfit = { Top = "gray_hood", Bottom = "tracksuit_2000", Shoes = "canvas", Hat = "cap" },
 	},
 	b_boss = {
 		Faction = "Bandits",
 		DisplayName = "Авторитет",
 		Unlock = { Type = "Pass", Pass = "SkinPack" },
-		Shirt = Color3.fromRGB(240, 240, 240),
-		Pants = Color3.fromRGB(20, 20, 20),
-		Shoes = Color3.fromRGB(20, 20, 20),
-		ShirtTemplate = 6305883971,
-		PantsTemplate = 5900184711,
-		Gear = {
-			{ Kind = "Chain", Color = Color3.fromRGB(240, 200, 70) },
-			{ Kind = "Visor", Color = Color3.fromRGB(20, 20, 20) },
-		},
+		Shirt = rgb(90, 60, 40),
+		Pants = rgb(20, 20, 20),
+		Outfit = { Top = "leather_brown", Bottom = "cargo_black2", Shoes = "running" },
 	},
 
 	-- Силовики
@@ -91,79 +74,49 @@ Skins.List = {
 		Faction = "Gov",
 		DisplayName = "Патрульный",
 		Unlock = { Type = "Default" },
-		Shirt = Color3.fromRGB(40, 60, 110),
-		Pants = Color3.fromRGB(30, 35, 55),
-		Shoes = Color3.fromRGB(20, 20, 20),
-		ShirtTemplate = 311390210,
-		PantsTemplate = 170027698,
-		Gear = { { Kind = "Cap", Color = Color3.fromRGB(30, 40, 80) } },
+		Shirt = rgb(35, 50, 90),
+		Pants = rgb(25, 25, 30),
+		Outfit = { Top = "police_blue", Bottom = "tactical_black", Shoes = "boots_black", Hat = "police_cap" },
 	},
 	g_assault = {
 		Faction = "Gov",
 		DisplayName = "Штурмовик",
 		Unlock = { Type = "Rank", Rank = 2 },
-		Shirt = Color3.fromRGB(35, 35, 40),
-		Pants = Color3.fromRGB(35, 35, 40),
-		Shoes = Color3.fromRGB(20, 20, 20),
-		ShirtTemplate = 7052153170,
-		PantsTemplate = 2888443521,
-		Gear = {
-			{ Kind = "Helmet", Color = Color3.fromRGB(30, 30, 35) },
-			{ Kind = "Vest", Color = Color3.fromRGB(25, 25, 30) },
-		},
+		Shirt = rgb(25, 25, 28),
+		Pants = rgb(25, 25, 28),
+		Outfit = { Top = "swat_black", Bottom = "blackops", Shoes = "boots_black", Hat = "swat_black" },
 	},
 	g_camo = {
 		Faction = "Gov",
 		DisplayName = "Полевая форма",
 		Unlock = { Type = "Coins", Price = 600 },
-		Shirt = Color3.fromRGB(85, 95, 60),
-		Pants = Color3.fromRGB(75, 80, 55),
-		Shoes = Color3.fromRGB(50, 40, 30),
-		ShirtTemplate = 1718367929,
-		PantsTemplate = 1837155389,
-		Gear = {
-			{ Kind = "Helmet", Color = Color3.fromRGB(80, 90, 60) },
-			{ Kind = "Backpack", Color = Color3.fromRGB(70, 75, 50) },
-		},
+		Shirt = rgb(80, 90, 60),
+		Pants = rgb(75, 80, 55),
+		Outfit = { Top = "woodland", Bottom = "camo", Shoes = "boots_camo", Hat = "swat_olive" },
 	},
 	g_special = {
 		Faction = "Gov",
 		DisplayName = "Спецназ",
 		Unlock = { Type = "Rank", Rank = 4 },
-		Shirt = Color3.fromRGB(20, 20, 25),
-		Pants = Color3.fromRGB(20, 20, 25),
-		Shoes = Color3.fromRGB(15, 15, 15),
-		ShirtTemplate = 28984380,
-		PantsTemplate = 28984542,
-		Gear = {
-			{ Kind = "Balaclava", Color = Color3.fromRGB(15, 15, 15) },
-			{ Kind = "Helmet", Color = Color3.fromRGB(20, 20, 25) },
-			{ Kind = "Vest", Color = Color3.fromRGB(35, 35, 40) },
-		},
+		Shirt = rgb(20, 20, 22),
+		Pants = rgb(20, 20, 22),
+		Outfit = { Top = "swat_armor", Bottom = "strapped", Shoes = "boots_black", Hat = "pasgt" },
 	},
 	g_season = {
 		Faction = "Gov",
 		DisplayName = "Передел (сезон 1)",
 		Unlock = { Type = "Season", Tier = 20 },
-		Shirt = Color3.fromRGB(230, 230, 235),
-		Pants = Color3.fromRGB(40, 60, 110),
-		Shoes = Color3.fromRGB(20, 20, 20),
-		Gear = {
-			{ Kind = "Helmet", Color = Color3.fromRGB(230, 230, 235) },
-			{ Kind = "Visor", Color = Color3.fromRGB(40, 60, 110) },
-		},
+		Shirt = rgb(85, 90, 60),
+		Pants = rgb(30, 30, 30),
+		Outfit = { Top = "olive", Bottom = "blackout_camo", Shoes = "boots_brown", Hat = "tactical_cap" },
 	},
 	g_elite = {
 		Faction = "Gov",
 		DisplayName = "Полковник",
 		Unlock = { Type = "Pass", Pass = "SkinPack" },
-		Shirt = Color3.fromRGB(30, 50, 40),
-		Pants = Color3.fromRGB(30, 50, 40),
-		Shoes = Color3.fromRGB(15, 15, 15),
-		Gear = {
-			{ Kind = "Cap", Color = Color3.fromRGB(30, 50, 40) },
-			{ Kind = "Chain", Color = Color3.fromRGB(220, 180, 60) },
-		},
+		Shirt = rgb(30, 40, 60),
+		Pants = rgb(25, 25, 30),
+		Outfit = { Top = "police_jacket", Bottom = "tactical_black", Shoes = "work_black", Hat = "ru_police_cap" },
 	},
 }
 

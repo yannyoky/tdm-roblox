@@ -1,7 +1,9 @@
--- Собирает HumanoidDescription персонажа из внешности игрока (Look) и одежды стороны (Outfit).
+-- Собирает HumanoidDescription персонажа из внешности игрока (Look), скина стороны
+-- (комплект 3D-одежды из Config/Skins) и вещей, которые игрок заменил (Outfit).
 -- Вызывается только на сервере: ApplyDescription и LoadCharacterWithHumanoidDescription
--- клиенту недоступны. Форма стороны (цвета, снаряжение Gear_*) надевается после этого через SkinApply.
+-- клиенту недоступны.
 local Appearance = require(script.Parent.Config.Appearance)
+local Skins = require(script.Parent.Config.Skins)
 
 local AppearanceApply = {}
 
@@ -53,13 +55,15 @@ function AppearanceApply.sanitizeOutfit(faction: string, outfit: any): { [string
 	return clean
 end
 
--- Выбрана ли своя шапка вместо головного убора формы.
-function AppearanceApply.hasOwnHat(outfit: { [string]: string }?): boolean
-	return outfit ~= nil and outfit.Hat ~= nil and outfit.Hat ~= Appearance.UNIFORM
-end
-
 -- base — описание аватара игрока (или nil). faction = nil — лобби: своя одежда аватара остаётся.
-function AppearanceApply.describe(base: HumanoidDescription?, look: { [string]: any }, faction: string?, outfit: { [string]: string }?): HumanoidDescription
+-- skinId — скин стороны: его вещи надеваются в слоты, где игрок оставил «как в скине».
+function AppearanceApply.describe(
+	base: HumanoidDescription?,
+	look: { [string]: any },
+	faction: string?,
+	outfit: { [string]: string }?,
+	skinId: string?
+): HumanoidDescription
 	local desc = if base then base:Clone() else Instance.new("HumanoidDescription")
 
 	for _, prop in EXTRA_PROPS do
@@ -115,8 +119,14 @@ function AppearanceApply.describe(base: HumanoidDescription?, look: { [string]: 
 		desc.HatAccessory = ""
 		local layered = {}
 		local pieces = Appearance.Clothing[faction] or {}
+		local skin = skinId and Skins.List[skinId]
+		local preset = if skin and skin.Faction == faction then skin.Outfit or {} else {}
 		for _, slot in Appearance.ClothingSlots do
-			local piece = outfit and Appearance.findIn(pieces[slot.Key], outfit[slot.Key])
+			local choice = outfit and outfit[slot.Key]
+			if choice == nil or choice == Appearance.UNIFORM then
+				choice = preset[slot.Key]
+			end
+			local piece = Appearance.findIn(pieces[slot.Key], choice)
 			if piece and piece.Hat then
 				desc.HatAccessory = tostring(piece.Hat)
 			end
@@ -143,15 +153,6 @@ function AppearanceApply.describe(base: HumanoidDescription?, look: { [string]: 
 	desc.FaceAccessory = table.concat(faceItems, ",")
 	CharacterLook.applyToDescription(desc)
 	return desc
-end
-
--- Пометить аксессуары, надетые по описанию, чтобы SkinApply их не снимал.
-function AppearanceApply.tag(model: Model)
-	for _, inst in model:GetChildren() do
-		if inst:IsA("Accessory") then
-			inst:SetAttribute("Look", true)
-		end
-	end
 end
 
 -- Случайная внешность для бота.
@@ -181,7 +182,8 @@ function AppearanceApply.randomOutfit(faction: string): { [string]: string }
 	local pieces = Appearance.Clothing[faction] or {}
 	for _, slot in Appearance.ClothingSlots do
 		local list = pieces[slot.Key] or {}
-		outfit[slot.Key] = if #list > 0 and math.random() < 0.7 then list[math.random(#list)].Id else Appearance.UNIFORM
+		-- Чаще всего бот носит комплект скина целиком, иногда меняет одну-две вещи.
+		outfit[slot.Key] = if #list > 0 and math.random() < 0.3 then list[math.random(#list)].Id else Appearance.UNIFORM
 	end
 	return outfit
 end
