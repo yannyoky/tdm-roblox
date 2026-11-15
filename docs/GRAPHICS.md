@@ -6,7 +6,7 @@
 
 | Что | Где |
 | --- | --- |
-| `Lighting.LightingStyle = Realistic` (бывший Technology = Future), `PrioritizeLightingQuality` | `default.project.json` (из скрипта не меняется, ставит Rojo) |
+| `Lighting.LightingStyle = Realistic` (бывший Technology = Future), `PrioritizeLightingQuality` | ставится в Studio в окне Properties и сохраняется в месте: скрипт его менять не может, а Rojo 7.4 этого свойства ещё не знает |
 | Свет, время суток, атмосфера, облака, Bloom, цветокоррекция, лучи солнца по картам | `Config/Decor.luau` → `Lighting`, применяет `server/World/Ambience.luau` |
 | Отделка карт: окна, карнизы, тротуары, разметка, фонари, деревья, мелочь на улицах, дворы, базы | `server/World/Detailer.luau`, `Config/Decor.luau` |
 | Земля из Terrain с травой, свет в зданиях | `server/World/Realism.luau`, `Config/Graphics.luau` |

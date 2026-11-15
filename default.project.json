@@ -28,9 +28,7 @@
         "GlobalShadows": true,
         "EnvironmentDiffuseScale": 1,
         "EnvironmentSpecularScale": 1,
-        "ShadowSoftness": 0.15,
-        "LightingStyle": "Realistic",
-        "PrioritizeLightingQuality": true
+        "ShadowSoftness": 0.15
       }
     },
     "MaterialService": {
