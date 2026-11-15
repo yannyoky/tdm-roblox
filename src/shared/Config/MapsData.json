@@ -69,7 +69,7 @@
         { "k": "ramp", "x": -135, "z": 32, "w": 10, "h": 5, "len": 20, "rot": 300 },
         { "k": "ramp", "x": 225, "z": -55, "w": 10, "h": 5, "len": 20, "rot": 120 }
       ],
-      "Filler": { "Seed": 11, "Count": 110, "StreetShare": 0.65, "Area": [-450, -440, 450, 440], "Kinds": ["block", "shell", "containers", "crates", "garages", "block"] }
+      "Filler": { "Seed": 11, "Count": 300, "StreetShare": 0.75, "Gap": 3.5, "Depth": 26, "Area": [-450, -440, 450, 440], "Kinds": ["block", "shell", "containers", "crates", "garages", "block", "shop"] }
     },
 
     "Suburb": {
@@ -134,7 +134,7 @@
       "Extras": [
         { "k": "ramp", "x": -285, "z": -10, "w": 10, "h": 4, "len": 18, "rot": 10 }
       ],
-      "Filler": { "Seed": 23, "Count": 85, "StreetShare": 0.75, "Area": [-450, -440, 450, 440], "Kinds": ["panel", "panel", "block", "shell", "garages", "crates"] }
+      "Filler": { "Seed": 23, "Count": 290, "StreetShare": 0.82, "Gap": 3, "Depth": 30, "Area": [-450, -440, 450, 440], "Kinds": ["panel", "panel", "block", "shell", "garages", "shop", "shop", "block"] }
     },
 
     "Port": {
@@ -195,7 +195,7 @@
       "Extras": [
         { "k": "ramp", "x": -20, "z": 5, "w": 12, "h": 6, "len": 24, "rot": 315 }
       ],
-      "Filler": { "Seed": 37, "Count": 130, "StreetShare": 0.45, "Area": [-450, -440, 450, 440], "Kinds": ["containers", "containers", "containers", "shell", "block", "garages"] }
+      "Filler": { "Seed": 37, "Count": 320, "StreetShare": 0.55, "Gap": 3.5, "Depth": 22, "Area": [-450, -440, 450, 440], "Kinds": ["containers", "containers", "containers", "shell", "block", "garages", "shop"] }
     },
 
     "Village": {
@@ -258,7 +258,7 @@
         { "k": "ramp", "x": -245, "z": -120, "w": 10, "h": 5, "len": 20, "rot": 0 },
         { "k": "ramp", "x": 247, "z": 125, "w": 10, "h": 5, "len": 20, "rot": 180 }
       ],
-      "Filler": { "Seed": 51, "Count": 90, "StreetShare": 0.7, "Area": [-450, -450, 450, 450], "Kinds": ["dacha", "dacha", "dacha", "shed", "crates", "dacha"] }
+      "Filler": { "Seed": 51, "Count": 190, "StreetShare": 0.72, "Gap": 4, "Depth": 12, "Area": [-450, -450, 450, 450], "Kinds": ["dacha", "dacha", "dacha", "shed", "crates", "dacha"] }
     }
   }
 }

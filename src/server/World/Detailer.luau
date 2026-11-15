@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config.Decor)
 local Assets = require(script.Parent.DecorAssets)
+local Props = require(script.Parent.Props)
 
 local Detailer = {}
 
@@ -245,6 +246,56 @@ local function roofProps(parent: Instance, base: CFrame, w: number, d: number, r
 end
 
 ------------------------------------------------------------------------
+-- Витрина магазина
+
+local SHOPS = {
+	{ "ПРОДУКТЫ", Color3.fromRGB(40, 120, 60) },
+	{ "АПТЕКА", Color3.fromRGB(40, 150, 90) },
+	{ "ШАУРМА", Color3.fromRGB(200, 110, 30) },
+	{ "ЛОМБАРД", Color3.fromRGB(160, 130, 40) },
+	{ "ШИНОМОНТАЖ", Color3.fromRGB(40, 40, 45) },
+	{ "ЦВЕТЫ", Color3.fromRGB(190, 60, 110) },
+	{ "ХОЗТОВАРЫ", Color3.fromRGB(150, 80, 40) },
+	{ "РЕМОНТ ТЕЛЕФОНОВ", Color3.fromRGB(40, 80, 160) },
+	{ "БАР «ПОДВАЛ»", Color3.fromRGB(110, 30, 35) },
+	{ "ПАРИКМАХЕРСКАЯ", Color3.fromRGB(120, 60, 140) },
+	{ "МАГАЗИН 24 ЧАСА", Color3.fromRGB(200, 40, 40) },
+	{ "ОПТИКА", Color3.fromRGB(30, 110, 150) },
+	{ "СТОЛОВАЯ", Color3.fromRGB(170, 100, 50) },
+	{ "АВТОЗАПЧАСТИ", Color3.fromRGB(60, 60, 70) },
+	{ "ПЕКАРНЯ", Color3.fromRGB(180, 130, 60) },
+	{ "МИКРОЗАЙМЫ", Color3.fromRGB(230, 170, 20) },
+}
+
+-- shop — номер вывески (1..#SHOPS, по кругу). Витрина по сторонам от двери (дверь в центре).
+local function shopFront(parent: Instance, face: CFrame, len: number, h: number, shop: number, _rng: Random)
+	local info = SHOPS[(shop - 1) % #SHOPS + 1]
+	local col = info[2]
+	local glassTop = math.min(5.6, h - 3)
+	for _, sgn in { -1, 1 } do
+		local u0, u1 = 2.6, len / 2 - 1
+		if u1 - u0 > 1.5 then
+			local u = sgn * (u0 + u1) / 2
+			local w = u1 - u0
+			trim(parent, "ShopFrame", Vector3.new(w + 0.4, glassTop - 0.6, 0.16), face * CFrame.new(u, 0.8 + (glassTop - 0.8) / 2, -0.08), FRAME, Enum.Material.SmoothPlastic)
+			trim(parent, "ShopWindow", Vector3.new(w, glassTop - 1, 0.1), face * CFrame.new(u, 0.8 + (glassTop - 0.8) / 2, -0.17), GLASS:Lerp(Color3.new(1, 1, 1), 0.15), Enum.Material.Glass, { Reflectance = 0.2 })
+			local n = math.max(1, math.floor(w / 4))
+			for i = 1, n - 1 do
+				trim(parent, "ShopMullion", Vector3.new(0.18, glassTop - 1, 0.1), face * CFrame.new(u - w / 2 + i * w / n, 0.8 + (glassTop - 0.8) / 2, -0.25), FRAME, Enum.Material.SmoothPlastic)
+			end
+		end
+	end
+	-- Вывеска и навес.
+	local signW = math.min(len - 2, 18)
+	local signY = glassTop + 1.3
+	local board = trim(parent, "ShopSign", Vector3.new(signW, 1.8, 0.3), face * CFrame.new(0, signY, -0.2), col, Enum.Material.SmoothPlastic)
+	local text = trim(parent, "ShopSignText", Vector3.new(signW - 0.6, 1.4, 0.05), face * CFrame.new(0, signY, -0.38), col, Enum.Material.SmoothPlastic, { Transparency = 1 })
+	Props.label(text, info[1], Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack)
+	board.CastShadow = false
+	trim(parent, "Awning", Vector3.new(len - 1.5, 0.2, 2.6), face * CFrame.new(0, glassTop + 0.15, -1.2) * CFrame.Angles(math.rad(-14), 0, 0), col:Lerp(Color3.new(1, 1, 1), 0.25), Enum.Material.Fabric)
+end
+
+------------------------------------------------------------------------
 -- Элементы
 
 local decorators = {}
@@ -279,8 +330,14 @@ function decorators.block(parent: Instance, e, mapId: string, created: { Instanc
 			facadeBands(parent, face, len, h, floorH, color)
 		end
 
+		-- Магазин: на улицу смотрит витрина с вывеской вместо окон первого этажа.
+		local isShopFront = e.shop and side == "N"
+		if isShopFront then
+			shopFront(parent, face, len, h, e.shop, rng)
+		end
+
 		-- Окна по этажам.
-		local skipAll = side == accessSide and accessKind == "stairs"
+		local skipAll = (side == accessSide and accessKind == "stairs") or isShopFront
 		local n = math.floor((len - 3) / 7)
 		if not skipAll and n >= 1 and h >= 7 then
 			local floors = math.max(1, math.floor(h / floorH))
@@ -320,7 +377,7 @@ function decorators.block(parent: Instance, e, mapId: string, created: { Instanc
 			trim(parent, "DoorFrame", Vector3.new(4.4, dh + 0.4, 0.16), face * CFrame.new(0, dh / 2 + 0.2, -0.08), FRAME, Enum.Material.SmoothPlastic)
 			trim(parent, "Door", Vector3.new(3.6, dh, 0.14), face * CFrame.new(0, dh / 2, -0.15), DARK_METAL, Enum.Material.Metal)
 			trim(parent, "DoorHandle", Vector3.new(0.4, 0.15, 0.2), face * CFrame.new(1.2, 3.5, -0.3), Color3.fromRGB(180, 180, 175), Enum.Material.Metal)
-			if not small then
+			if not small and not e.shop then
 				-- Козырёк над входом.
 				trim(parent, "DoorCanopy", Vector3.new(5.5, 0.3, 2), face * CFrame.new(0, dh + 1, -1), TRIM, Enum.Material.Concrete)
 			end
@@ -703,7 +760,18 @@ function CLUTTER.pipes(parent: Instance, cf: CFrame, rng: Random)
 	solid(trim(parent, "BigPipe", Vector3.new(10, 1.5, 1.5), cf * CFrame.new(-0.8, 2.05, 0) * CFrame.Angles(0, math.pi / 2, 0), col, Enum.Material.CorrodedMetal, { Shape = Enum.PartType.Cylinder }))
 end
 
-local CLUTTER_KINDS = { "barrels", "barrels", "dumpster", "pallets", "pallets", "tires", "bench", "slabs", "pipes" }
+CLUTTER.trashbags = Props.trashbags
+CLUTTER.couch = Props.couch
+CLUTTER.wreck = Props.wreck
+CLUTTER.binarea = Props.binArea
+CLUTTER.planter = Props.planter
+
+local CLUTTER_KINDS = {
+	"barrels", "barrels", "dumpster", "dumpster", "pallets", "pallets", "tires", "bench", "slabs", "pipes",
+	"trashbags", "trashbags", "trashbags", "couch", "wreck", "binarea", "planter",
+}
+-- Большим вещам нужно больше места.
+local CLUTTER_CLEARANCE = { wreck = 9, binarea = 8, slabs = 6, pipes = 6 }
 
 ------------------------------------------------------------------------
 -- Расстановка: деревья, кусты, мелочь. Места выбираются вне дорог и построек.
@@ -736,6 +804,46 @@ local function nearRoad(roads: { BasePart }, pos: Vector3, margin: number): bool
 	return false
 end
 
+-- Куда отделку не ставим: базы команд (с запасом вокруг стен, чтобы не загородить ворота)
+-- и точки появления. Возвращает проверку (позиция, радиус) -> true, если место запретное.
+local function keepOut(geo: Instance): (Vector3, number) -> boolean
+	local map = geo.Parent
+	local volumes: { BasePart } = {}
+	local spawnPoints: { Vector3 } = {}
+	local bases = map and map:FindFirstChild("Bases")
+	if bases then
+		for _, b in bases:GetChildren() do
+			if b:IsA("BasePart") then
+				table.insert(volumes, b)
+			end
+		end
+	end
+	local spawns = map and map:FindFirstChild("Spawns")
+	if spawns then
+		for _, f in spawns:GetChildren() do
+			for _, sp in f:GetChildren() do
+				if sp:IsA("BasePart") then
+					table.insert(spawnPoints, sp.Position)
+				end
+			end
+		end
+	end
+	return function(pos: Vector3, r: number): boolean
+		for _, v in volumes do
+			local p = v.CFrame:PointToObjectSpace(pos)
+			if math.abs(p.X) < v.Size.X / 2 + r + 8 and math.abs(p.Z) < v.Size.Z / 2 + r + 8 then
+				return true
+			end
+		end
+		for _, sp in spawnPoints do
+			if Vector3.new(sp.X - pos.X, 0, sp.Z - pos.Z).Magnitude < r + 5 then
+				return true
+			end
+		end
+		return false
+	end
+end
+
 function Detailer.scatter(geo: Instance, mapId: string)
 	local counts = Config.Scatter[mapId] or Config.Scatter.Default
 	if not counts then
@@ -765,11 +873,12 @@ function Detailer.scatter(geo: Instance, mapId: string)
 		return if hit then hit.Position.Y else 0
 	end
 
-	-- Место свободно: не на дороге и рядом нет деталей карты (кроме земли).
+	-- Место свободно: не на дороге, не на базе и рядом нет деталей карты (кроме земли).
+	local forbidden = keepOut(geo)
 	local function freeSpot(clearance: number, roadMargin: number): Vector3?
 		for _ = 1, 25 do
 			local pos = Vector3.new(rng:NextNumber(-half, half), 0, rng:NextNumber(-half, half))
-			if not nearRoad(roads, pos, roadMargin) then
+			if not nearRoad(roads, pos, roadMargin) and not forbidden(pos, clearance) then
 				local hits = workspace:GetPartBoundsInBox(CFrame.new(pos + Vector3.new(0, 7, 0)), Vector3.new(clearance * 2, 12, clearance * 2), overlap)
 				local blocked = false
 				for _, h in hits do
@@ -852,9 +961,9 @@ function Detailer.scatter(geo: Instance, mapId: string)
 	end
 
 	for _ = 1, counts.Clutter or 0 do
-		local pos = freeSpot(4, 3)
+		local kind = CLUTTER_KINDS[rng:NextInteger(1, #CLUTTER_KINDS)]
+		local pos = freeSpot(CLUTTER_CLEARANCE[kind] or 4, 3)
 		if pos then
-			local kind = CLUTTER_KINDS[rng:NextInteger(1, #CLUTTER_KINDS)]
 			local m = Instance.new("Model")
 			m.Name = "Clutter_" .. kind
 			CLUTTER[kind](m, CFrame.new(pos) * yaw(rng:NextNumber(0, 360)), rng)
@@ -899,6 +1008,7 @@ function Detailer.lamps(geo: Instance)
 	overlap.FilterType = Enum.RaycastFilterType.Include
 	overlap.FilterDescendantsInstances = { geo }
 	local walk = if Config.Sidewalks and Config.Sidewalks.Enabled then Config.Sidewalks.Width else 0
+	local forbidden = keepOut(geo)
 	local side = 1
 	local acc = 0 -- сколько прошли от прошлого фонаря: куски дороги идут подряд
 	for _, road in roads do
@@ -908,7 +1018,7 @@ function Detailer.lamps(geo: Instance)
 			while z <= len / 2 do
 				local x = side * (road.Size.X / 2 + walk - 0.8)
 				local pos = road.CFrame:PointToWorldSpace(Vector3.new(x, 0, z))
-				local blocked = false
+				local blocked = forbidden(pos, 1)
 				-- Не на перекрёстке: точка не должна попадать на другие (непараллельные) дороги.
 				for _, other in roads do
 					if other ~= road and other.Name == "Road" and math.abs(other.CFrame.LookVector:Dot(road.CFrame.LookVector)) < 0.95 then
@@ -938,6 +1048,295 @@ function Detailer.lamps(geo: Instance)
 		end
 	end
 	out.Parent = geo
+end
+
+------------------------------------------------------------------------
+-- Улицы: урны, знаки, столбы с проводами, деревья, остановки, киоски, щиты, изгороди, переходы.
+
+-- Точка попадает на другую дорогу с запасом r? Куски той же дороги (атрибут RoadId) проверяются
+-- без запаса и без круглых стыков: иначе соседние куски «закрывали» бы всё вдоль улицы.
+local function onOtherRoad(roads: { BasePart }, road: BasePart?, pos: Vector3, r: number): boolean
+	local id = road and road:GetAttribute("RoadId")
+	for _, other in roads do
+		if other ~= road then
+			local same = id ~= nil and other:GetAttribute("RoadId") == id
+			if same then
+				if other.Name == "Road" then
+					local p = other.CFrame:PointToObjectSpace(pos)
+					if math.abs(p.X) < other.Size.X / 2 and math.abs(p.Z) < other.Size.Z / 2 then
+						return true
+					end
+				end
+			elseif other.Name == "RoadJoint" then
+				local d = Vector3.new(pos.X - other.Position.X, 0, pos.Z - other.Position.Z).Magnitude
+				if d < other.Size.Y / 2 + r then
+					return true
+				end
+			else
+				local p = other.CFrame:PointToObjectSpace(pos)
+				if math.abs(p.X) < other.Size.X / 2 + r and math.abs(p.Z) < other.Size.Z / 2 + r then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+local IGNORE_HITS = { Ground = true, Sidewalk = true, Curb = true, Boundary = true, Patch = true }
+
+-- В коробке нет твёрдых деталей карты (кроме земли и тротуара)?
+local function boxFree(cf: CFrame, size: Vector3, overlap: OverlapParams): boolean
+	for _, h in workspace:GetPartBoundsInBox(cf, size, overlap) do
+		if h.CanCollide and not IGNORE_HITS[h.Name] then
+			return false
+		end
+	end
+	return true
+end
+
+-- Дерево у тротуара: меш дуба поменьше, приствольная лунка, невидимый твёрдый ствол.
+local function streetTree(parent: Instance, cf: CFrame, rng: Random)
+	local k = rng:NextNumber(0.38, 0.52)
+	local leafColor = Config.LeafColors[rng:NextInteger(1, #Config.LeafColors)]
+	local m = meshProp(parent, "StreetTree", Assets.Oak[rng:NextInteger(1, #Assets.Oak)], cf * yaw(rng:NextNumber(0, 360)), k, leafColor)
+	local trunkH = 12 * k / 0.7
+	local trunk = Instance.new("Part")
+	trunk.Name = "TreeCollider"
+	trunk.Anchored = true
+	trunk.Transparency = 1
+	trunk.Size = Vector3.new(1.4, trunkH, 1.4)
+	trunk.CFrame = cf * CFrame.new(0, trunkH / 2, 0)
+	trunk.Parent = m
+	trim(m, "TreePit", Vector3.new(3.4, 0.08, 3.4), cf * CFrame.new(0, 0.04, 0), Color3.fromRGB(78, 62, 46), Enum.Material.Ground, { CastShadow = false })
+	trim(m, "TreePitEdge", Vector3.new(3.8, 0.12, 3.8), cf * CFrame.new(0, 0.03, 0), Color3.fromRGB(150, 148, 142), Enum.Material.Concrete, { CastShadow = false })
+end
+
+-- Виды уличных вещей. off — отступ от края дороги (тротуар шириной walk), size — габарит
+-- для проверки места (X вдоль дороги), oneSide — только по одной стороне.
+local STREET_ITEMS = {
+	{ key = "Crosswalks", phase = 0.5 },
+	{ key = "BusStops", phase = 0.3, off = function(walk) return walk + 2.8 end, size = Vector3.new(11.5, 9, 5) },
+	{ key = "Kiosks", phase = 0.7, off = function(walk) return walk + 3.4 end, size = Vector3.new(8, 8, 6) },
+	{ key = "Billboards", phase = 0.1, off = function(walk) return walk + 6 end, size = Vector3.new(23, 21, 2.4), y0 = 0 },
+	{ key = "Poles", phase = 0.15, off = function(walk) return walk + 0.9 end, size = Vector3.new(1.6, 19, 1.6), oneSide = true },
+	{ key = "Trees", phase = 0.4, off = function(walk) return walk + 2.4 end, size = Vector3.new(4, 10, 4) },
+	{ key = "Hedges", phase = 0.85, off = function(walk) return walk + 1.3 end, size = Vector3.new(8.4, 3, 2.2) },
+	{ key = "Bins", phase = 0.6, off = function(walk) return walk - 0.9 end, size = Vector3.new(1.8, 3, 1.8) },
+	{ key = "Hydrants", phase = 0.25, off = function(_walk) return 1 end, size = Vector3.new(1.4, 3, 1.4) },
+	{ key = "Signs", phase = 0.9, off = function(_walk) return 0.6 end, size = Vector3.new(1.2, 9, 1.2) },
+}
+
+function Detailer.street(geo: Instance, mapId: string)
+	local cfg = Config.Street and (Config.Street[mapId] or Config.Street.Default)
+	if not cfg then
+		return
+	end
+	local roads = roadParts(geo)
+	local walk = if Config.Sidewalks and Config.Sidewalks.Enabled then Config.Sidewalks.Width else 0
+	local overlap = OverlapParams.new()
+	overlap.FilterType = Enum.RaycastFilterType.Include
+	overlap.FilterDescendantsInstances = { geo }
+	local rng = Random.new(#mapId * 541 + 7)
+	local forbidden = keepOut(geo)
+	local out = Instance.new("Model")
+	out.Name = "Detail_Street"
+	out.Parent = geo
+
+	local acc, side = {}, {}
+	for _, item in STREET_ITEMS do
+		local spacing = cfg[item.key] or 0
+		acc[item.key] = spacing * (1 - item.phase)
+		side[item.key] = 1
+	end
+	local lastPole: Vector3? = nil
+
+	for _, road in roads do
+		if road.Name ~= "Road" or road.Material ~= Enum.Material.Asphalt then
+			continue
+		end
+		local len = road.Size.Z
+		local hw = road.Size.X / 2
+		local look, right = road.CFrame.LookVector, road.CFrame.RightVector
+		for _, item in STREET_ITEMS do
+			local spacing = cfg[item.key] or 0
+			if spacing <= 0 then
+				continue
+			end
+			local z = -len / 2 + (spacing - acc[item.key])
+			while z <= len / 2 do
+				local placed = false
+				if item.key == "Crosswalks" then
+					-- «Зебра» поперёк дороги и знаки по обе стороны. Не у перекрёстка.
+					local center = road.CFrame:PointToWorldSpace(Vector3.new(0, 0, z))
+					if z > -len / 2 + 3 and z < len / 2 - 3 and not onOtherRoad(roads, road, center, hw + 10) and not forbidden(center, hw + 4) then
+						local m = Instance.new("Model")
+						m.Name = "Crosswalk"
+						local x = -hw + 1.2
+						while x <= hw - 1.2 do
+							trim(m, "Zebra", Vector3.new(1.2, 0.02, 5), road.CFrame * CFrame.new(x, road.Size.Y / 2 + 0.015, z), Color3.fromRGB(232, 230, 222), Enum.Material.SmoothPlastic, { CastShadow = false })
+							x += 2.4
+						end
+						for _, s in { -1, 1 } do
+							local p = road.CFrame:PointToWorldSpace(Vector3.new(s * (hw + 0.6), 0, z + s * 3.5))
+							local cf = CFrame.lookAt(Vector3.new(p.X, 0, p.Z), Vector3.new(p.X, 0, p.Z) - look * s)
+							if boxFree(cf * CFrame.new(0, 4.5, 0), Vector3.new(1.2, 9, 1.2), overlap) then
+								Props.roadSign(m, cf, "crossing", rng)
+							end
+						end
+						m.Parent = out
+						placed = true
+					end
+				else
+					local s = side[item.key]
+					local x = s * (hw + item.off(walk))
+					local pos = road.CFrame:PointToWorldSpace(Vector3.new(x, 0, z))
+					pos = Vector3.new(pos.X, 0, pos.Z)
+					local halfAlong = item.size.X / 2
+					local r = math.max(item.size.Z / 2, 0.5)
+					local ends = { pos, pos + look * halfAlong, pos - look * halfAlong }
+					local ok = not forbidden(pos, math.max(halfAlong, r))
+					for _, p in ends do
+						if onOtherRoad(roads, road, p, r) then
+							ok = false
+							break
+						end
+					end
+					-- Лицом к дороге: -Z смотрит на ось дороги, X идёт вдоль неё.
+					local cf = CFrame.lookAt(pos, pos - right * s)
+					if ok and boxFree(cf * CFrame.new(0, item.size.Y / 2 + 0.3, 0), item.size, overlap) then
+						local m = Instance.new("Model")
+						m.Name = "Street_" .. item.key
+						if item.key == "BusStops" then
+							Props.busStop(m, cf, rng)
+						elseif item.key == "Kiosks" then
+							Props.kiosk(m, cf, rng)
+						elseif item.key == "Billboards" then
+							Props.billboard(m, cf * yaw(rng:NextNumber(-12, 12)), rng)
+						elseif item.key == "Poles" then
+							local a, b = Props.powerPole(m, cf)
+							if lastPole and (lastPole - pos).Magnitude < spacing * 1.6 then
+								Props.wire(m, lastPole + (a - pos), a)
+								Props.wire(m, lastPole + (b - pos), b)
+							end
+							lastPole = pos
+						elseif item.key == "Trees" then
+							streetTree(m, cf, rng)
+						elseif item.key == "Hedges" then
+							Props.hedge(m, cf, 8, rng)
+						elseif item.key == "Bins" then
+							Props.bin(m, cf, rng)
+						elseif item.key == "Hydrants" then
+							Props.hydrant(m, cf)
+						elseif item.key == "Signs" then
+							-- Знак смотрит навстречу движению по своей стороне.
+							Props.roadSign(m, CFrame.lookAt(pos, pos + look * s), Props.pick(Props.SIGN_KINDS, rng), rng)
+						end
+						m.Parent = out
+						placed = true
+					end
+				end
+				if placed then
+					if not item.oneSide then
+						side[item.key] = -side[item.key]
+					end
+					z += spacing
+				else
+					z += math.max(4, spacing * 0.15) -- место занято: пробуем чуть дальше
+				end
+			end
+			-- Сколько уже прошли к следующей вещи: продолжаем на следующем куске дороги.
+			acc[item.key] = math.clamp(spacing - (z - len / 2), 0, spacing)
+		end
+	end
+end
+
+------------------------------------------------------------------------
+-- Дворы: контейнерные площадки и мусор у задних стен, адресные таблички, граффити.
+
+function Detailer.yards(geo: Instance, mapId: string)
+	local cfg = Config.Yards and (Config.Yards[mapId] or Config.Yards.Default)
+	if not cfg then
+		return
+	end
+	local roads = roadParts(geo)
+	local overlap = OverlapParams.new()
+	overlap.FilterType = Enum.RaycastFilterType.Include
+	overlap.FilterDescendantsInstances = { geo }
+	local forbidden = keepOut(geo)
+	local out = Instance.new("Model")
+	out.Name = "Detail_Yards"
+	out.Parent = geo
+
+	-- Дома: глухие здания (Building) и оболочки (по полу Floor, стены на 1 шире).
+	local houses = {}
+	for _, p in geo:GetChildren() do
+		if p:IsA("BasePart") then
+			if p.Name == "Building" then
+				table.insert(houses, { base = p.CFrame * CFrame.new(0, -p.Size.Y / 2, 0), w = p.Size.X, d = p.Size.Z, h = p.Size.Y, shell = false })
+			elseif p.Name == "Floor" then
+				table.insert(houses, { base = p.CFrame * CFrame.new(0, -0.1, 0), w = p.Size.X + 2, d = p.Size.Z + 2, h = 9, shell = true })
+			end
+		end
+	end
+
+	for _, house in houses do
+		local w, d, h = house.w, house.d, house.h
+		if w < 9 or d < 9 then
+			continue -- сараи и будки
+		end
+		local pos = house.base.Position
+		local rng = Random.new(math.floor(pos.X * 31 + pos.Z * 17) % 2 ^ 30)
+
+		-- Мусор у задней (S) или боковой стены.
+		if rng:NextNumber() < (cfg.Trash or 0) then
+			local sideName = if rng:NextNumber() < 0.65 then "S" else Props.pick({ "E", "W" }, rng)
+			local face, len = faceFrame(house.base, sideName, w, d, 0)
+			local big = len >= 18 and rng:NextNumber() < 0.6
+			local along = if big then 13 else 6
+			if len > along + 2 then
+				local u = rng:NextNumber(-len / 2 + along / 2 + 1, len / 2 - along / 2 - 1)
+				local depth = if big then 6 else 3.6
+				local cf = face * CFrame.new(u, 0, -depth / 2 - 0.8)
+				cf = CFrame.new(cf.Position.X, 0, cf.Position.Z) * cf.Rotation
+				local p = cf.Position
+				if not forbidden(p, along / 2) and not onOtherRoad(roads, nil, p, depth / 2 + 1) and boxFree(cf * CFrame.new(0, 2.3, 0), Vector3.new(along, 4, depth), overlap) then
+					local m = Instance.new("Model")
+					m.Name = "Yard_Trash"
+					if big then
+						Props.binArea(m, cf, rng)
+					else
+						Props.dumpster(m, cf * CFrame.new(-1, 0, 0), rng)
+						if rng:NextNumber() < 0.7 then
+							Props.trashbags(m, cf * CFrame.new(3.6, 0, -0.3), rng)
+						end
+					end
+					m.Parent = out
+				end
+			end
+		end
+
+		-- Табличка с адресом на углу уличного фасада.
+		if not house.shell and h >= 9 and rng:NextNumber() < (cfg.Address or 0) then
+			local face, len = faceFrame(house.base, "N", w, d, 0)
+			Props.addressPlate(out, face * CFrame.new(len / 2 - 2.6, math.min(8.3, h - 2), -0.25), rng)
+		end
+
+		-- Граффити внизу стены (не по центру, где обычно дверь).
+		if rng:NextNumber() < (cfg.Graffiti or 0) then
+			local sideName = Props.pick({ "N", "S", "E", "W" }, rng)
+			local face, len = faceFrame(house.base, sideName, w, d, 0)
+			local gw = math.min(len - 8, rng:NextNumber(5, 9))
+			if gw >= 4 then
+				local half = len / 2 - gw / 2 - 0.5
+				local minU = gw / 2 + 3.5
+				if half > minU then
+					local u = (if rng:NextNumber() < 0.5 then -1 else 1) * rng:NextNumber(minU, half)
+					Props.graffiti(out, face * CFrame.new(u, 1.9, -0.33), gw, 2.9, rng)
+				end
+			end
+		end
+	end
 end
 
 -- Ночью фонари горят, днём — нет. Вызывается после настройки света.
