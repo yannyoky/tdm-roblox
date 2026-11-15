@@ -26,6 +26,7 @@ type PadRecord = {
 }
 
 local folder: Folder
+local placeAtExit: (Model, BasePart, Humanoid) -> ()
 local pads: { PadRecord } = {}
 
 local function teamOf(player: Player): string?
@@ -85,12 +86,12 @@ local function parkDrive(model: Model)
 	if not drive then
 		return
 	end
-	local torque = model:GetAttribute("Torque") or 5000
+	local brake = model:GetAttribute("Brake") or 40000
 	for _, c in drive:GetChildren() do
 		if c:IsA("HingeConstraint") then
 			if c.ActuatorType == Enum.ActuatorType.Motor then
 				c.AngularVelocity = 0
-				c.MotorMaxTorque = torque * 0.5
+				c.MotorMaxTorque = brake * 0.25
 			else
 				c.TargetAngle = 0
 			end
@@ -236,8 +237,40 @@ local function setupRam(model: Model)
 		hum:TakeDamage(VehiclesConfig.RamDamage * math.clamp(speed / 60, 0.6, 1.6))
 	end
 	for _, part in model:GetChildren() do
-		if part:IsA("BasePart") and (part.Name == "Chassis" or part.Name == "Hood" or part.Name == "Bumper") then
+		if part:IsA("BasePart") and part.Name:sub(1, 5) == "Hull_" then
 			part.Touched:Connect(onTouched)
+		end
+	end
+end
+
+-- Ставит вышедшего у двери его места. Если там стена — с другой стороны, иначе как есть.
+local exitParams = RaycastParams.new()
+exitParams.FilterType = Enum.RaycastFilterType.Exclude
+placeAtExit = function(model: Model, seat: BasePart, hum: Humanoid)
+	local char = hum.Parent
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local chassis = model.PrimaryPart
+	local exit = chassis and chassis:FindFirstChild(seat:GetAttribute("Exit") or "") :: Attachment?
+	if not root or not exit or hum.Health <= 0 or hum.SeatPart then
+		return
+	end
+	exitParams.FilterDescendantsInstances = { model, char }
+	local look = chassis.CFrame.LookVector
+	local candidates = { exit.WorldPosition }
+	-- запасной вариант: зеркально, на другой стороне машины
+	local mirrored = chassis.CFrame:PointToWorldSpace(exit.Position * Vector3.new(-1, 1, 1))
+	table.insert(candidates, mirrored)
+	for _, pos in candidates do
+		local from = seat.Position + Vector3.new(0, 1.5, 0)
+		local blocked = workspace:Raycast(from, pos - from, exitParams)
+		if not blocked then
+			local flat = Vector3.new(look.X, 0, look.Z)
+			if flat.Magnitude < 0.1 then
+				flat = Vector3.new(0, 0, -1)
+			end
+			char:PivotTo(CFrame.lookAt(pos, pos + flat.Unit))
+			root.AssemblyLinearVelocity = chassis.AssemblyLinearVelocity
+			return
 		end
 	end
 end
@@ -262,16 +295,29 @@ local function setupVehicle(model: Model, record: PadRecord?)
 	local chassis = model.PrimaryPart :: BasePart
 	local name = model.Name
 
-	-- Посадка по кнопке: E — за руль, F — пассажиром.
-	prompt(driverSeat, "За руль", name, Enum.KeyCode.E).Triggered:Connect(function(player)
-		local hum = humanoidOf(player)
-		if not hum or hum.SeatPart or not canUse(player, model) or model:GetAttribute("Destroyed") then
-			return
+	-- Посадка через двери: у каждого места своя дверь, E у ближайшей двери сажает на её место
+	-- (у водительской — за руль). F рядом с машиной — на любое свободное пассажирское место.
+	for _, seat in seatsOf(model) do
+		local door = chassis:FindFirstChild(seat:GetAttribute("Door") or "")
+		if not door then
+			continue
 		end
-		if driverSeat.Occupant == nil then
-			driverSeat:Sit(hum)
-		end
-	end)
+		local p = prompt(door, if seat == driverSeat then "За руль" else "Сесть", name, Enum.KeyCode.E)
+		p.MaxActivationDistance = 6
+		p.Exclusivity = Enum.ProximityPromptExclusivity.OnePerButton
+		p.Triggered:Connect(function(player)
+			local hum = humanoidOf(player)
+			if not hum or hum.SeatPart or not canUse(player, model) or model:GetAttribute("Destroyed") then
+				return
+			end
+			if seat.Occupant == nil then
+				seat:Sit(hum)
+			end
+		end)
+		seat:GetPropertyChangedSignal("Occupant"):Connect(function()
+			p.Enabled = seat.Occupant == nil and not model:GetAttribute("Destroyed")
+		end)
+	end
 	prompt(chassis, "Пассажиром", name, Enum.KeyCode.F, Vector2.new(0, 80)).Triggered:Connect(function(player)
 		local hum = humanoidOf(player)
 		if not hum or hum.SeatPart or not canUse(player, model) or model:GetAttribute("Destroyed") then
@@ -303,9 +349,16 @@ local function setupVehicle(model: Model, record: PadRecord?)
 	end)
 
 	-- Чужие не садятся даже касанием; водитель получает физику машины себе.
+	-- Вышедший из машины встаёт у своей двери, а не на крышу.
 	for _, seat in seatsOf(model) do
+		local lastHum: Humanoid? = nil
 		seat:GetPropertyChangedSignal("Occupant"):Connect(function()
 			local hum = seat.Occupant
+			if hum == nil and lastHum then
+				local left = lastHum
+				task.defer(placeAtExit, model, seat, left)
+			end
+			lastHum = hum
 			local player = hum and Players:GetPlayerFromCharacter(hum.Parent)
 			if hum and (not player or not canUse(player, model) or model:GetAttribute("Destroyed")) then
 				task.defer(eject, seat)

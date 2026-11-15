@@ -1,7 +1,15 @@
--- Собирает машину из описания в Config/Vehicles.
--- Устройство: тяжёлое шасси (PrimaryPart) + приваренный лёгкий кузов + 4 колеса на шарнирах.
---   Задние колёса: HingeConstraint-мотор прямо на шасси.
---   Передние: поворотный кулак (HingeConstraint-сервопривод, ось вверх) + мотор колеса.
+-- Собирает машину по её модели: геометрия из World/VehicleModels, характеристики из Config/Vehicles.
+--
+-- Устройство (всё считается от точки на земле под центром машины: X вправо, h вверх, Z назад):
+--   Chassis   -- невидимый груз на высоте осей, несёт почти всю массу (низкий центр тяжести,
+--                машина не кувыркается). Это PrimaryPart.
+--   Hull_*    -- невидимые коробки по форме кузова: столкновения и попадания пуль.
+--                Стёкла (Glass) пули пропускают — можно стрелять из машины и попасть в сидящих.
+--   BodyMesh* -- кузов из меша, только картинка.
+--   Колёса    -- там же, где колёса на модели, того же размера. Каждое на своей подвеске:
+--                шасси → ползун (PrismaticConstraint + SpringConstraint) → [поворотный кулак] → колесо.
+--                Поверх нарисованных в меше колёс надеты свои крутящиеся колёса.
+--   Сиденья   -- на местах из модели; у каждого своя дверь (кнопка посадки сбоку) и место выхода.
 -- Шарниры лежат в папке Drive (Motor_FL/FR/RL/RR, Steer_FL/FR); ими управляет клиент водителя
 -- (src/client/VehicleController.luau), потому что физику машины считает его компьютер.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,12 +17,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local VehiclesConfig = require(Shared.Config.Vehicles)
 local TeamsConfig = require(Shared.Config.Teams)
-local VehicleMeshes = require(script.Parent.VehicleMeshes)
+local VehicleModels = require(script.Parent.VehicleModels)
 
 local VehicleBuilder = {}
 
-local WHEEL_WIDTH = 1.2
 local DARK = Color3.fromRGB(28, 28, 30)
+local TIRE = Color3.fromRGB(22, 22, 24)
+local RIM = Color3.fromRGB(170, 172, 178)
+local UP = CFrame.Angles(0, 0, math.pi / 2) -- поворачивает ось X шарнира/ползуна вверх
+local SPAWN_LIFT = 0.25 -- машина появляется чуть над землёй и мягко садится на подвеску
 
 local function weld(a: BasePart, b: BasePart)
 	local w = Instance.new("WeldConstraint")
@@ -31,20 +42,79 @@ local function attachment(parent: BasePart, name: string, cf: CFrame): Attachmen
 	return a
 end
 
--- Кабина «каркасом» (стойки и крыша, без стёкол): из машины можно стрелять, и её видно насквозь.
-local STYLES = {
-	sedan = { cabin = { -2.6, 3.6 }, roofY = 4.9, hood = 0.26, trunk = true },
-	suv = { cabin = { -3.2, 4.6 }, roofY = 5.4, hood = 0.22, trunk = true },
-	pickup = { cabin = { -4.4, -0.6 }, roofY = 5.0, hood = 0.22, bed = true },
-	van = { cabin = { -5.2, 7.0 }, roofY = 5.7, hood = 0.13 },
-	armored = { cabin = { -5.6, 7.6 }, roofY = 5.9, hood = 0.14, armor = true },
-}
+local function part(props: { [string]: any }): Part
+	local p = Instance.new("Part")
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	for k, v in props do
+		(p :: any)[k] = v
+	end
+	return p
+end
+
+local function ghost(p: BasePart)
+	p.Transparency = 1
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Massless = true
+end
+
+-- Видимое колесо поверх физического: шина, диск и спицы (по ним видно, что колесо крутится).
+local function dressWheel(model: Model, wheel: BasePart, name: string, r: number, w: number, side: number)
+	local tire = part({
+		Name = "Tire_" .. name,
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(w + 0.2, (r + 0.08) * 2, (r + 0.08) * 2),
+		CFrame = wheel.CFrame,
+		Color = TIRE,
+		Material = Enum.Material.Rubber,
+	})
+	ghost(tire)
+	tire.Transparency = 0
+	tire.Parent = model
+	weld(wheel, tire)
+	local face = wheel.CFrame * CFrame.new(side * (w / 2 + 0.12), 0, 0)
+	local rim = part({
+		Name = "Rim_" .. name,
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.08, r * 1.25, r * 1.25),
+		CFrame = face,
+		Color = RIM,
+		Material = Enum.Material.Metal,
+	})
+	ghost(rim)
+	rim.Transparency = 0
+	rim.Parent = model
+	weld(wheel, rim)
+	for i = 0, 2 do
+		local spoke = part({
+			Name = "Spoke_" .. name,
+			Size = Vector3.new(0.1, r * 1.2, 0.22),
+			CFrame = face * CFrame.new(side * 0.03, 0, 0) * CFrame.Angles(math.rad(i * 60), 0, 0),
+			Color = Color3.fromRGB(90, 92, 98),
+			Material = Enum.Material.Metal,
+		})
+		ghost(spoke)
+		spoke.Transparency = 0
+		spoke.Parent = model
+		weld(wheel, spoke)
+	end
+end
 
 function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string): Model
 	local cfg = VehiclesConfig.Types[typeId]
 	assert(cfg, "Нет машины " .. tostring(typeId))
-	local style = STYLES[cfg.Style] or STYLES.sedan
-	local W, L, R = cfg.Width, cfg.Length, cfg.WheelRadius
+	local geo = VehicleModels[typeId]
+	assert(geo, "Нет модели машины " .. tostring(typeId) .. " в World/VehicleModels")
+	local wh = geo.wheels
+	local R, WW = wh.r, wh.w
+	local wheelbase = wh.rear - wh.front
+	local midZ = (wh.front + wh.rear) / 2
+	local base = groundCf * CFrame.new(0, SPAWN_LIFT, 0)
+	local function at(x: number, h: number, z: number): CFrame
+		return base * CFrame.new(x, h, z)
+	end
 
 	local model = Instance.new("Model")
 	model.Name = cfg.Name
@@ -56,139 +126,132 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 	model:SetAttribute("MaxSpeed", cfg.MaxSpeed)
 	model:SetAttribute("ReverseSpeed", cfg.ReverseSpeed)
 	model:SetAttribute("Torque", cfg.Torque)
+	model:SetAttribute("Brake", cfg.Brake or cfg.Torque)
 	model:SetAttribute("SteerAngle", cfg.SteerAngle)
+	model:SetAttribute("Drive", cfg.Drive or "AWD")
+	model:SetAttribute("MinRadius", cfg.MinRadius or 11)
+	model:SetAttribute("YawLow", cfg.YawLow or 2.3)
+	model:SetAttribute("YawHigh", cfg.YawHigh or 1.25)
+	model:SetAttribute("Grip", cfg.Grip or 7)
 	model:SetAttribute("WheelRadius", R)
 	model:SetAttribute("DriveSign", VehiclesConfig.DriveSign)
 	model:SetAttribute("SteerSign", VehiclesConfig.SteerSign)
+	model:SetAttribute("Wheelbase", wheelbase)
+	model:SetAttribute("Length", geo.size.Z)
+	model:SetAttribute("Width", geo.size.X)
 
-	-- Центр шасси поднят так, чтобы колёса чуть касались земли.
-	local rootCf = groundCf * CFrame.new(0, R + 0.3 + 0.3, 0)
-	local chassis = Instance.new("Part")
-	chassis.Name = "Chassis"
-	chassis.Size = Vector3.new(W, 1, L)
-	chassis.CFrame = rootCf
-	chassis.Color = cfg.Accent
-	chassis.Material = Enum.Material.Metal
-	chassis.CustomPhysicalProperties = PhysicalProperties.new(3, 0.3, 0, 1, 1)
-	chassis.TopSurface = Enum.SurfaceType.Smooth
-	chassis.BottomSurface = Enum.SurfaceType.Smooth
+	-- Груз-шасси: между колёсами на высоте осей.
+	local chassisSize = Vector3.new(math.max(1, wh.x * 2 - WW - 1), 0.6, math.max(2, wheelbase - R * 2))
+	local mass = cfg.Mass or 400
+	local chassis = part({
+		Name = "Chassis",
+		Size = chassisSize,
+		CFrame = at(0, R, midZ),
+		Transparency = 1,
+		CanCollide = false,
+		CanTouch = true,
+		CustomPhysicalProperties = PhysicalProperties.new(
+			math.clamp(mass / (chassisSize.X * chassisSize.Y * chassisSize.Z), 0.01, 100), 0.3, 0, 1, 1),
+	})
 	chassis.Parent = model
 	model.PrimaryPart = chassis
 
-	local function body(name: string, size: Vector3, offset: Vector3, color: Color3, mat: Enum.Material?): Part
-		local p = Instance.new("Part")
-		p.Name = name
-		p.Size = size
-		p.CFrame = rootCf * CFrame.new(offset)
-		p.Color = color
-		p.Material = mat or Enum.Material.SmoothPlastic
-		p.Massless = true
-		p.TopSurface = Enum.SurfaceType.Smooth
-		p.BottomSurface = Enum.SurfaceType.Smooth
+	-- Коробки кузова: столкновения и попадания.
+	local showHull = VehiclesConfig.ShowHull == true
+	for i, box in geo.hull do
+		local lo, hi = box.min, box.max
+		local hull = part({
+			Name = (if box.glass then "Glass_" else "Hull_") .. i,
+			Size = hi - lo,
+			CFrame = at((lo.X + hi.X) / 2, (lo.Y + hi.Y) / 2, (lo.Z + hi.Z) / 2),
+			Transparency = if showHull then 0.6 else 1,
+			Color = if box.glass then Color3.fromRGB(80, 160, 255) else Color3.fromRGB(255, 120, 40),
+			Massless = true,
+			CanQuery = not box.glass, -- через стёкла пули летят к сидящим внутри
+			CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.35, 0.1, 1, 1),
+		})
+		hull.Parent = model
+		weld(chassis, hull)
+	end
+
+	-- Кузов из меша.
+	local bodyCf = base * CFrame.new(0, geo.size.Y / 2, 0)
+	for i, piece in geo.parts do
+		local p = part({
+			Name = "BodyMesh" .. i,
+			Size = Vector3.new(0.4, 0.4, 0.4),
+			CFrame = bodyCf * CFrame.new(piece.pos) * CFrame.Angles(0, math.rad(piece.yaw or 0), 0),
+		})
+		ghost(p)
+		p.Transparency = 0
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.FileMesh
+		mesh.MeshId = "rbxassetid://" .. piece.mesh
+		if piece.tex then
+			mesh.TextureId = "rbxassetid://" .. piece.tex
+		end
+		mesh.Scale = piece.scale
+		mesh.Parent = p
 		p.Parent = model
 		weld(chassis, p)
-		return p
-	end
-
-	local top = 0.5 -- верх шасси
-	local sideH = if style.armor then 2.2 else 1.3
-	local c0, c1 = style.cabin[1], math.min(style.cabin[2], L / 2 - 0.3)
-	local cabinLen, cabinZ = c1 - c0, (c0 + c1) / 2
-
-	-- Капот.
-	local hoodLen = math.max(1.5, L * style.hood)
-	body("Hood", Vector3.new(W, 1.3, hoodLen), Vector3.new(0, top + 0.65, -L / 2 + hoodLen / 2), cfg.Body)
-	body("Bumper", Vector3.new(W + 0.2, 0.6, 0.5), Vector3.new(0, top - 0.1, -L / 2 - 0.1), DARK)
-	body("Bumper", Vector3.new(W + 0.2, 0.6, 0.5), Vector3.new(0, top - 0.1, L / 2 + 0.1), DARK)
-	-- Фары.
-	body("Headlight", Vector3.new(1, 0.5, 0.2), Vector3.new(-W / 2 + 0.8, top + 0.9, -L / 2 - 0.05), Color3.fromRGB(255, 250, 220), Enum.Material.Neon)
-	body("Headlight", Vector3.new(1, 0.5, 0.2), Vector3.new(W / 2 - 0.8, top + 0.9, -L / 2 - 0.05), Color3.fromRGB(255, 250, 220), Enum.Material.Neon)
-
-	-- Борта кабины (низкие, через верх можно стрелять).
-	body("Door", Vector3.new(0.3, sideH, cabinLen), Vector3.new(-W / 2 + 0.15, top + sideH / 2, cabinZ), cfg.Body)
-	body("Door", Vector3.new(0.3, sideH, cabinLen), Vector3.new(W / 2 - 0.15, top + sideH / 2, cabinZ), cfg.Body)
-	-- Стойки и крыша.
-	local pillarH = style.roofY - (top + sideH)
-	for _, x in { -W / 2 + 0.2, W / 2 - 0.2 } do
-		for _, z in { c0 + 0.2, c1 - 0.2 } do
-			body("Pillar", Vector3.new(0.35, pillarH, 0.35), Vector3.new(x, top + sideH + pillarH / 2, z), DARK)
-		end
-	end
-	body("Roof", Vector3.new(W, 0.3, cabinLen), Vector3.new(0, style.roofY + 0.15, cabinZ), cfg.Body)
-
-	if style.trunk then
-		local trunkLen = L / 2 - c1
-		if trunkLen > 0.5 then
-			body("Trunk", Vector3.new(W, 1.3, trunkLen), Vector3.new(0, top + 0.65, c1 + trunkLen / 2), cfg.Body)
-		end
-	end
-	if style.bed then
-		local bedLen = L / 2 - c1
-		body("BedSide", Vector3.new(0.3, 1.6, bedLen), Vector3.new(-W / 2 + 0.15, top + 0.8, c1 + bedLen / 2), cfg.Body)
-		body("BedSide", Vector3.new(0.3, 1.6, bedLen), Vector3.new(W / 2 - 0.15, top + 0.8, c1 + bedLen / 2), cfg.Body)
-		body("Tailgate", Vector3.new(W, 1.6, 0.3), Vector3.new(0, top + 0.8, L / 2 - 0.15), cfg.Body)
-	end
-	if style.armor then
-		-- Броневые щитки на бампере.
-		body("Plate", Vector3.new(W, 1.6, 0.4), Vector3.new(0, top + 1.6, -L / 2 + hoodLen + 0.2), cfg.Accent, Enum.Material.DiamondPlate)
 	end
 
 	-- Полоса цвета команды на крыше и мигалка у силовиков.
+	local roof = geo.roof
 	local teamColor = TeamsConfig.List[teamKey] and TeamsConfig.List[teamKey].Color or cfg.Accent
-	body("TeamStripe", Vector3.new(W * 0.5, 0.1, cabinLen * 0.8), Vector3.new(0, style.roofY + 0.35, cabinZ), teamColor, Enum.Material.Neon)
+	local stripe = part({
+		Name = "TeamStripe",
+		Size = Vector3.new(roof.w * 0.45, 0.1, roof.len * 0.7),
+		CFrame = at(0, roof.h + 0.05, roof.z),
+		Color = teamColor,
+		Material = Enum.Material.Neon,
+	})
+	ghost(stripe)
+	stripe.Transparency = 0
+	stripe.Parent = model
+	weld(chassis, stripe)
 	if cfg.LightBar then
-		local red = body("LightBar", Vector3.new(W * 0.3, 0.4, 0.8), Vector3.new(-W * 0.16, style.roofY + 0.5, c0 + 0.8), Color3.fromRGB(255, 40, 40), Enum.Material.Neon)
-		local blue = body("LightBar", Vector3.new(W * 0.3, 0.4, 0.8), Vector3.new(W * 0.16, style.roofY + 0.5, c0 + 0.8), Color3.fromRGB(40, 90, 255), Enum.Material.Neon)
-		red:SetAttribute("Siren", "red")
-		blue:SetAttribute("Siren", "blue")
+		for _, s in { { "red", -1, Color3.fromRGB(255, 40, 40) }, { "blue", 1, Color3.fromRGB(40, 90, 255) } } do
+			local lamp = part({
+				Name = "LightBar",
+				Size = Vector3.new(roof.w * 0.22, 0.4, 0.8),
+				CFrame = if geo.siren
+					then at(s[2] * roof.w * 0.12, geo.siren.h, geo.siren.z)
+					else at(s[2] * roof.w * 0.12, roof.h + 0.25, roof.z - roof.len * 0.3),
+				Color = s[3],
+				Material = Enum.Material.Neon,
+			})
+			ghost(lamp)
+			lamp.Transparency = 0
+			lamp:SetAttribute("Siren", s[1])
+			lamp.Parent = model
+			weld(chassis, lamp)
+		end
 	end
 
-	-- Готовый кузов из мешей (VehicleMeshes): детали выше становятся невидимой оболочкой.
-	local meshDef = VehicleMeshes[typeId]
-	local seatDrop = 0
-	if meshDef then
-		local ground = -(R + 0.6) -- низ колёс относительно центра шасси
-		local bodyCf = rootCf * CFrame.new(0, ground + meshDef.size.Y / 2, 0)
-		for _, part in model:GetChildren() do
-			if part:IsA("BasePart") and part.Name ~= "LightBar" and part.Name ~= "TeamStripe" then
-				part.Transparency = 1
-			end
+	-- Фары: свет на капоте (сам меш их уже рисует).
+	if geo.lights then
+		for _, x in { -geo.lights.x, geo.lights.x } do
+			local holder = part({ Name = "Headlight", Size = Vector3.new(0.2, 0.2, 0.2), CFrame = at(x, geo.lights.h, geo.lights.z) })
+			ghost(holder)
+			local light = Instance.new("SpotLight")
+			light.Face = Enum.NormalId.Front
+			light.Range = 40
+			light.Angle = 60
+			light.Brightness = 2
+			light.Color = Color3.fromRGB(255, 245, 220)
+			light.Parent = holder
+			holder.Parent = model
+			weld(chassis, holder)
 		end
-		for i, piece in meshDef.parts do
-			local p = Instance.new("Part")
-			p.Name = "BodyMesh" .. i
-			p.Size = Vector3.new(0.4, 0.4, 0.4)
-			p.CFrame = bodyCf * CFrame.new(piece.pos) * CFrame.Angles(0, math.rad(piece.yaw or 0), 0)
-			p.Massless = true
-			p.CanCollide = false
-			p.CanQuery = false
-			p.CanTouch = false
-			local mesh = Instance.new("SpecialMesh")
-			mesh.MeshType = Enum.MeshType.FileMesh
-			mesh.MeshId = "rbxassetid://" .. piece.mesh
-			if piece.tex then
-				mesh.TextureId = "rbxassetid://" .. piece.tex
-			end
-			mesh.Scale = piece.scale
-			mesh.Parent = p
-			p.Parent = model
-			weld(chassis, p)
-		end
-		-- Полоса команды и мигалка — на крышу меша.
-		local roof = meshDef.roof
-		for _, part in model:GetChildren() do
-			if part:IsA("BasePart") and (part.Name == "TeamStripe" or part.Name == "LightBar") then
-				local local_ = rootCf:ToObjectSpace(part.CFrame)
-				local y = ground + roof.y + (if part.Name == "TeamStripe" then 0.05 else 0.25)
-				local z = roof.z + (if part.Name == "LightBar" then -1.2 else 0.6)
-				part.CFrame = rootCf * CFrame.new(local_.X, y, z)
-			end
-		end
-		seatDrop = 0.4 -- кузов ниже коробочного: садимся ниже, чтобы голова не торчала из крыши
 	end
 
-	-- Сиденья: первое — водительское (VehicleSeat даёт газ/руль с клавиатуры, геймпада и телефона).
-	for i, offset in cfg.Seats do
+	-- Сиденья, двери и места выхода. Первое сиденье — водительское.
+	local doors = Instance.new("Folder")
+	doors.Name = "Doors"
+	doors.Parent = model
+	local halfW = geo.size.X / 2
+	for i, s in geo.seats do
 		local seat: Seat | VehicleSeat
 		if i == 1 then
 			local vs = Instance.new("VehicleSeat")
@@ -201,67 +264,98 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 			seat = Instance.new("Seat")
 			seat.Name = "Seat" .. i
 		end
-		seat.Size = Vector3.new(2, 0.6, 2)
-		seat.CFrame = rootCf * CFrame.new(offset - Vector3.new(0, seatDrop, 0))
-		seat.Color = DARK
-		if meshDef then
-			seat.Transparency = 1
-		end
+		seat.Size = Vector3.new(2, 0.4, 2)
+		seat.CFrame = at(s.pos.X, s.pos.Y - 0.2, s.pos.Z) -- pos.Y — верх подушки
+		seat.Transparency = 1
+		seat.CanCollide = false
 		seat.Massless = true
-		seat.TopSurface = Enum.SurfaceType.Smooth
 		seat.Parent = model
 		weld(chassis, seat)
+
+		-- Дверь: точка сбоку у сиденья (для мест в кузове — у борта или сзади).
+		local side = if s.door == "back" then 0 elseif s.pos.X < 0 then -1 else 1
+		local doorPos, exitPos
+		if side == 0 then
+			doorPos = Vector3.new(s.pos.X, math.max(2.5, s.pos.Y - 0.5), geo.size.Z / 2 + 0.3)
+			exitPos = Vector3.new(s.pos.X, 3, geo.size.Z / 2 + 2.5)
+		else
+			doorPos = Vector3.new(side * (halfW + 0.2), 3, s.pos.Z)
+			exitPos = Vector3.new(side * (halfW + 2.2), 3, s.pos.Z)
+		end
+		local door = attachment(chassis, "Door" .. i, chassis.CFrame:ToObjectSpace(at(doorPos.X, doorPos.Y, doorPos.Z)))
+		door:SetAttribute("Seat", seat.Name)
+		local exit = attachment(chassis, "Exit" .. i, chassis.CFrame:ToObjectSpace(at(exitPos.X, exitPos.Y, exitPos.Z)))
+		seat:SetAttribute("Door", door.Name)
+		seat:SetAttribute("Exit", exit.Name)
+		seat:SetAttribute("Open", s.open == true) -- открытое место (кузов): можно стрелять во все стороны
 	end
 
-	-- Колёса.
+	-- Колёса на подвеске.
 	local drive = Instance.new("Folder")
 	drive.Name = "Drive"
 	drive.Parent = model
-	local wheelX = W / 2 + WHEEL_WIDTH / 2 + 0.1
-	local wheelZ = L / 2 - R - 0.8
 	local wheelProps = PhysicalProperties.new(1.2, 1.8, 0, 100, 1)
-	local UP = CFrame.Angles(0, 0, math.pi / 2) -- поворачивает ось шарнира (X) вверх
+	local tinyProps = PhysicalProperties.new(0.7, 0.3, 0, 1, 1)
+	local susp = cfg.Suspension or {}
+	local hz = susp.Hz or 2.5
+	local damping = susp.Damping or 0.55
+	local travelUp, travelDown = susp.Up or 0.7, susp.Down or 0.6
+	local cornerMass = mass / 4
+	local stiffness = (2 * math.pi * hz) ^ 2 * cornerMass
+	local sag = cornerMass * workspace.Gravity / stiffness
+	local SPRING_TOP = 2 -- на сколько выше оси крепится пружина
+	local wheels = {}
+	model:SetAttribute("SpringStiffness", stiffness)
 
 	for _, w in {
-		{ "FL", -wheelX, -wheelZ, true },
-		{ "FR", wheelX, -wheelZ, true },
-		{ "RL", -wheelX, wheelZ, false },
-		{ "RR", wheelX, wheelZ, false },
+		{ "FL", -1, wh.front, true },
+		{ "FR", 1, wh.front, true },
+		{ "RL", -1, wh.rear, false },
+		{ "RR", 1, wh.rear, false },
 	} do
-		local name, x, z, front = w[1], w[2], w[3], w[4]
-		local pos = Vector3.new(x, -0.3, z)
+		local name, side, z, front = w[1], w[2], w[3], w[4]
+		local x = side * wh.x
+		local axleCf = at(x, R, z)
+		local localAxle = chassis.CFrame:ToObjectSpace(axleCf)
 
-		local wheel = Instance.new("Part")
-		wheel.Name = "Wheel_" .. name
-		wheel.Shape = Enum.PartType.Cylinder -- ось цилиндра = X = ось вращения
-		wheel.Size = Vector3.new(WHEEL_WIDTH, R * 2, R * 2)
-		wheel.CFrame = rootCf * CFrame.new(pos)
-		wheel.Color = DARK
-		wheel.Material = Enum.Material.Fabric
-		wheel.CustomPhysicalProperties = wheelProps
-		if meshDef then
-			wheel.Transparency = 1 -- колёса нарисованы в меше кузова
-		end
-		wheel.Parent = model
-		local wheelAtt = attachment(wheel, "Axle", CFrame.new())
+		-- Ползун подвески: ходит только вверх-вниз, его держит пружина.
+		local strut = part({ Name = "Strut_" .. name, Size = Vector3.new(0.4, 0.4, 0.4), CFrame = axleCf, CustomPhysicalProperties = tinyProps })
+		strut.Transparency = 1
+		strut.CanCollide = false
+		strut.CanQuery = false
+		strut.CanTouch = false
+		strut.Parent = model
+		local slide = Instance.new("PrismaticConstraint")
+		slide.Name = "Slide_" .. name
+		slide.Attachment0 = attachment(chassis, "SlideBase_" .. name, localAxle * UP)
+		slide.Attachment1 = attachment(strut, "Slide", UP)
+		slide.LimitsEnabled = true
+		slide.LowerLimit = -travelDown
+		slide.UpperLimit = travelUp
+		slide.Restitution = 0
+		slide.Parent = drive
+		local spring = Instance.new("SpringConstraint")
+		spring.Name = "Spring_" .. name
+		spring.Attachment0 = attachment(chassis, "SpringTop_" .. name, localAxle * CFrame.new(0, SPRING_TOP, 0))
+		spring.Attachment1 = attachment(strut, "Spring", CFrame.new())
+		spring.Stiffness = stiffness
+		spring.Damping = 2 * damping * math.sqrt(stiffness * cornerMass)
+		spring.FreeLength = SPRING_TOP + sag -- под весом машины колесо стоит ровно там, где на модели
+		spring.Visible = false
+		spring.Parent = drive
 
-		local hub: BasePart = chassis
-		local hubAtt: Attachment
+		local hub: BasePart = strut
 		if front then
-			-- Поворотный кулак: невидимая деталь, вокруг вертикали её крутит сервопривод.
-			local knuckle = Instance.new("Part")
-			knuckle.Name = "Knuckle_" .. name
-			knuckle.Size = Vector3.new(0.6, 0.6, 0.6)
-			knuckle.CFrame = rootCf * CFrame.new(pos)
+			-- Поворотный кулак: вокруг вертикали его крутит сервопривод.
+			local knuckle = part({ Name = "Knuckle_" .. name, Size = Vector3.new(0.4, 0.4, 0.4), CFrame = axleCf, CustomPhysicalProperties = tinyProps })
 			knuckle.Transparency = 1
 			knuckle.CanCollide = false
 			knuckle.CanQuery = false
 			knuckle.CanTouch = false
 			knuckle.Parent = model
-
 			local steer = Instance.new("HingeConstraint")
 			steer.Name = "Steer_" .. name
-			steer.Attachment0 = attachment(chassis, "SteerBase_" .. name, CFrame.new(pos) * UP)
+			steer.Attachment0 = attachment(strut, "SteerBase", UP)
 			steer.Attachment1 = attachment(knuckle, "Steer", UP)
 			steer.ActuatorType = Enum.ActuatorType.Servo
 			steer.ServoMaxTorque = 1e7
@@ -270,48 +364,42 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 			steer.LowerAngle = -cfg.SteerAngle
 			steer.UpperAngle = cfg.SteerAngle
 			steer.Parent = drive
-
 			hub = knuckle
-			hubAtt = attachment(knuckle, "Axle", CFrame.new())
-		else
-			hubAtt = attachment(chassis, "Axle_" .. name, CFrame.new(pos))
 		end
+
+		local wheel = part({
+			Name = "Wheel_" .. name,
+			Shape = Enum.PartType.Cylinder, -- ось цилиндра = X = ось вращения
+			Size = Vector3.new(WW, R * 2, R * 2),
+			CFrame = axleCf,
+			Transparency = 1,
+			CustomPhysicalProperties = wheelProps,
+		})
+		wheel.Parent = model
+		dressWheel(model, wheel, name, R, WW, side)
+		table.insert(wheels, wheel)
 
 		local motor = Instance.new("HingeConstraint")
 		motor.Name = "Motor_" .. name
-		motor.Attachment0 = hubAtt
-		motor.Attachment1 = wheelAtt
+		motor.Attachment0 = attachment(hub, "Axle_" .. name, CFrame.new())
+		motor.Attachment1 = attachment(wheel, "Axle", CFrame.new())
 		motor.ActuatorType = Enum.ActuatorType.Motor
-		motor.MotorMaxTorque = cfg.Torque * 0.5 -- стоит на «ручнике», пока нет водителя
+		motor.MotorMaxTorque = (cfg.Brake or cfg.Torque) * 0.25 -- стоит на «ручнике», пока нет водителя
 		motor.AngularVelocity = 0
+		motor:SetAttribute("Driven", (cfg.Drive or "AWD") == "AWD" or (cfg.Drive == "FWD") == front)
 		motor.Parent = drive
-
-		if hub ~= chassis then
-			local noCollide = Instance.new("NoCollisionConstraint")
-			noCollide.Part0 = wheel
-			noCollide.Part1 = hub
-			noCollide.Parent = wheel
-		end
 	end
 
-	-- Колёса не сталкиваются с собственным кузовом. Без этого повёрнутое переднее колесо
-	-- упиралось в шасси и капот, и руль не поворачивался.
-	local wheels, bodyParts = {}, {}
-	for _, part in model:GetChildren() do
-		if part:IsA("BasePart") then
-			if part.Name:sub(1, 6) == "Wheel_" then
-				table.insert(wheels, part)
-			elseif part.Name:sub(1, 8) ~= "Knuckle_" then
-				table.insert(bodyParts, part)
-			end
-		end
-	end
+	-- Колёса не сталкиваются с собственным кузовом (иначе повёрнутое колесо упирается в коробки
+	-- кузова, а сжатая подвеска заедает).
 	for _, wheel in wheels do
-		for _, part in bodyParts do
-			local nc = Instance.new("NoCollisionConstraint")
-			nc.Part0 = wheel
-			nc.Part1 = part
-			nc.Parent = wheel
+		for _, p in model:GetChildren() do
+			if p:IsA("BasePart") and p.CanCollide and p ~= wheel then
+				local nc = Instance.new("NoCollisionConstraint")
+				nc.Part0 = wheel
+				nc.Part1 = p
+				nc.Parent = wheel
+			end
 		end
 	end
 
@@ -324,9 +412,6 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 	assist.RelativeTo = Enum.ActuatorRelativeTo.Attachment0
 	assist.Torque = Vector3.zero
 	assist.Parent = drive
-	model:SetAttribute("Wheelbase", wheelZ * 2)
-	model:SetAttribute("Length", L)
-	model:SetAttribute("Width", W)
 
 	return model
 end

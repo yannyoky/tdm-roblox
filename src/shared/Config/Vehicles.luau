@@ -1,26 +1,32 @@
 -- Автопарк фракций. Машины появляются на площадках у базы своей команды.
--- Сесть: E — за руль, F — пассажиром (на телефоне кнопки над машиной). Выйти: прыжок. Ручник: Shift.
+-- Сесть: E у двери (у водительской — за руль), F — на любое свободное место. Выйти: прыжок
+-- (встаёте у своей двери). Ручник: Shift.
 -- Чужой машиной воспользоваться нельзя (TeamLocked), но её можно расстрелять.
 --
--- Поля машины:
---   Style        -- внешний вид кузова: sedan | pickup | van | suv | armored
---   Width/Length -- размер шасси в студах; вперёд — это -Z модели. Подогнан под кузов
---                   из World/VehicleMeshes (ширина = кузов − 2, длина = кузов − 1)
---   WheelRadius  -- радиус колёс (больше = выше клиренс, лучше по бездорожью)
+-- Форма машины (кузов, колёса, сиденья, двери, коробки столкновений) — в src/server/World/VehicleModels.luau.
+-- Здесь — характеристики и управляемость:
+--   Mass         -- масса (почти вся на высоте осей, машина не кувыркается). Тяжелее = инертнее, сильнее таранит
+--   Drive        -- ведущие колёса: RWD (задний привод), FWD (передний), AWD (полный)
 --   MaxSpeed     -- студов/с вперёд (пешком 16, бегом 24)
 --   ReverseSpeed -- студов/с назад
---   Torque       -- крутящий момент на колесо (разгон и подъём в горку)
+--   Torque       -- общий крутящий момент на ведущих колёсах (разгон и подъём в горку)
+--   Brake        -- общий тормозной момент
 --   SteerAngle   -- угол поворота передних колёс, градусы
+--   MinRadius    -- самый крутой разворот, студов (меньше = вертлявее)
+--   YawLow/YawHigh -- скорость разворота на малой и на максимальной скорости, рад/с
+--   Grip         -- как сильно машина держит дорогу боком (меньше = больше заносит)
+--   Suspension   -- Hz: жёсткость (больше = жёстче, меньше = мягче и раскачивается),
+--                   Damping: гашение раскачки (0..1), Up/Down: ход колеса вверх/вниз, студов
 --   Health       -- прочность; 0 = взрыв, пассажиры получают урон
 --   RespawnTime  -- через сколько секунд после потери машина снова появится на площадке
---   Seats        -- места: первое — водитель. Vector3 относительно центра шасси (X вправо, Z назад)
---   Body/Accent  -- цвета кузова
 --   LightBar     -- мигалка на крыше
 return {
 	-- Знак вращения мотора колёс. Если машины в Studio едут задом при нажатии W, поменяйте на 1.
 	DriveSign = -1,
 	-- Знак поворота руля. Если машина поворачивает влево при нажатии D, поменяйте на 1.
 	SteerSign = -1,
+
+	ShowHull = false, -- true: показать невидимые коробки кузова (оранжевые) и стёкла (синие) для подгонки
 
 	TeamLocked = true,
 	AbandonTime = 45, -- брошенная вдали от базы пустая машина возвращается на площадку через N секунд
@@ -30,144 +36,112 @@ return {
 
 	Types = {
 		-- Банда: быстрые и дешёвые, на скорость и внезапность.
-		Bandits_Sedan = {
+		Bandits_Sedan = { -- Мерседес W124: задний привод, лёгкий и вёрткий, мягко идёт в занос
 			Name = "Седан",
-			Style = "sedan",
-			Width = 5.9,
-			Length = 18.9,
-			WheelRadius = 1.4,
-			MaxSpeed = 88,
+			Mass = 380,
+			Drive = "RWD",
+			MaxSpeed = 90,
 			ReverseSpeed = 30,
-			Torque = 9000,
-			SteerAngle = 32,
+			Torque = 30000,
+			Brake = 44000,
+			SteerAngle = 34,
+			MinRadius = 10,
+			YawLow = 2.4,
+			YawHigh = 1.3,
+			Grip = 6.5,
+			Suspension = { Hz = 2.6, Damping = 0.55, Up = 0.6, Down = 0.5 },
 			Health = 350,
 			RespawnTime = 20,
-			Body = Color3.fromRGB(70, 28, 30),
-			Accent = Color3.fromRGB(25, 25, 25),
-			Seats = {
-				Vector3.new(-1.3, 1, -0.6),
-				Vector3.new(1.3, 1, -0.6),
-				Vector3.new(-1.3, 1, 2.2),
-				Vector3.new(1.3, 1, 2.2),
-			},
 		},
-		Bandits_Pickup = {
+		Bandits_Pickup = { -- Toyota Tacoma 4x4: полный привод, мягкая высокая подвеска, кузов для стрелков
 			Name = "Пикап",
-			Style = "pickup",
-			Width = 5.6,
-			Length = 17.5,
-			WheelRadius = 1.7,
-			MaxSpeed = 74,
+			Mass = 480,
+			Drive = "AWD",
+			MaxSpeed = 76,
 			ReverseSpeed = 28,
-			Torque = 12000,
-			SteerAngle = 30,
+			Torque = 42000,
+			Brake = 52000,
+			SteerAngle = 32,
+			MinRadius = 11.5,
+			YawLow = 2.1,
+			YawHigh = 1.15,
+			Grip = 7,
+			Suspension = { Hz = 2.1, Damping = 0.5, Up = 0.8, Down = 0.8 },
 			Health = 500,
 			RespawnTime = 25,
-			Body = Color3.fromRGB(96, 92, 70),
-			Accent = Color3.fromRGB(40, 38, 32),
-			Seats = {
-				Vector3.new(-1.3, 1, -2.4),
-				Vector3.new(1.3, 1, -2.4),
-				-- кузов: стоят открыто, могут стрелять во все стороны
-				Vector3.new(-1.6, 1.4, 2.6),
-				Vector3.new(1.6, 1.4, 2.6),
-				Vector3.new(0, 1.4, 5),
-			},
 		},
-		Bandits_Van = {
+		Bandits_Van = { -- Mercedes Vito: задний привод, тяжёлый, неповоротливый, много мест
 			Name = "Фургон",
-			Style = "van",
-			Width = 5.3,
-			Length = 16.3,
-			WheelRadius = 1.5,
-			MaxSpeed = 64,
+			Mass = 560,
+			Drive = "RWD",
+			MaxSpeed = 66,
 			ReverseSpeed = 24,
-			Torque = 13000,
-			SteerAngle = 28,
+			Torque = 40000,
+			Brake = 56000,
+			SteerAngle = 30,
+			MinRadius = 12.5,
+			YawLow = 1.9,
+			YawHigh = 1.0,
+			Grip = 6.5,
+			Suspension = { Hz = 2.3, Damping = 0.55, Up = 0.6, Down = 0.5 },
 			Health = 650,
 			RespawnTime = 35,
-			Body = Color3.fromRGB(200, 196, 185),
-			Accent = Color3.fromRGB(90, 30, 30),
-			Seats = {
-				Vector3.new(-1.5, 1, -3.4),
-				Vector3.new(1.5, 1, -3.4),
-				Vector3.new(-1.5, 1, -0.4),
-				Vector3.new(1.5, 1, -0.4),
-				Vector3.new(-1.5, 1, 2.6),
-				Vector3.new(1.5, 1, 2.6),
-			},
 		},
 
 		-- Силовики: тяжелее и крепче, медленнее разгоняются.
-		Gov_Patrol = {
+		Gov_Patrol = { -- Полицейский седан-перехватчик: задний привод, жёсткая подвеска, самый быстрый
 			Name = "Патрульная",
-			Style = "sedan",
-			Width = 5.6,
-			Length = 17.3,
-			WheelRadius = 1.4,
-			MaxSpeed = 84,
+			Mass = 400,
+			Drive = "RWD",
+			MaxSpeed = 92,
 			ReverseSpeed = 30,
-			Torque = 9500,
-			SteerAngle = 31,
+			Torque = 34000,
+			Brake = 48000,
+			SteerAngle = 33,
+			MinRadius = 10,
+			YawLow = 2.4,
+			YawHigh = 1.35,
+			Grip = 7.5,
+			Suspension = { Hz = 2.9, Damping = 0.6, Up = 0.5, Down = 0.5 },
 			Health = 400,
 			RespawnTime = 20,
-			Body = Color3.fromRGB(235, 235, 240),
-			Accent = Color3.fromRGB(40, 70, 160),
 			LightBar = true,
-			Seats = {
-				Vector3.new(-1.3, 1, -0.6),
-				Vector3.new(1.3, 1, -0.6),
-				Vector3.new(-1.3, 1, 2.2),
-				Vector3.new(1.3, 1, 2.2),
-			},
 		},
-		Gov_SUV = {
+		Gov_SUV = { -- Chevrolet Tahoe: полный привод, тяжёлый, качается на поворотах
 			Name = "Внедорожник",
-			Style = "suv",
-			Width = 5.7,
-			Length = 16.8,
-			WheelRadius = 1.8,
-			MaxSpeed = 72,
+			Mass = 600,
+			Drive = "AWD",
+			MaxSpeed = 78,
 			ReverseSpeed = 28,
-			Torque = 13000,
-			SteerAngle = 30,
+			Torque = 48000,
+			Brake = 60000,
+			SteerAngle = 31,
+			MinRadius = 12,
+			YawLow = 2.0,
+			YawHigh = 1.1,
+			Grip = 7,
+			Suspension = { Hz = 2.2, Damping = 0.5, Up = 0.8, Down = 0.7 },
 			Health = 650,
 			RespawnTime = 25,
-			Body = Color3.fromRGB(30, 34, 40),
-			Accent = Color3.fromRGB(40, 70, 160),
 			LightBar = true,
-			Seats = {
-				Vector3.new(-1.4, 1, -1.2),
-				Vector3.new(1.4, 1, -1.2),
-				Vector3.new(-1.4, 1, 1.8),
-				Vector3.new(1.4, 1, 1.8),
-			},
 		},
-		Gov_Armored = {
-			Name = "Бронефургон",
-			Style = "armored",
-			Width = 6.6,
-			Length = 17.2,
-			WheelRadius = 1.9,
+		Gov_Armored = { -- Mercedes Unimog: полный привод, огромный ход подвески, медленный танк
+			Name = "Унимог",
+			Mass = 1000,
+			Drive = "AWD",
 			MaxSpeed = 56,
 			ReverseSpeed = 22,
-			Torque = 17000,
-			SteerAngle = 26,
+			Torque = 85000,
+			Brake = 100000,
+			SteerAngle = 28,
+			MinRadius = 14,
+			YawLow = 1.6,
+			YawHigh = 0.85,
+			Grip = 7,
+			Suspension = { Hz = 1.9, Damping = 0.5, Up = 1.0, Down = 1.0 },
 			Health = 1100,
 			RespawnTime = 45,
-			Body = Color3.fromRGB(55, 65, 55),
-			Accent = Color3.fromRGB(40, 70, 160),
 			LightBar = true,
-			Seats = {
-				Vector3.new(-1.6, 1, -5.2),
-				Vector3.new(1.6, 1, -5.2),
-				Vector3.new(-1.6, 1, -1),
-				Vector3.new(1.6, 1, -1),
-				Vector3.new(-1.6, 1, 1.8),
-				Vector3.new(1.6, 1, 1.8),
-				Vector3.new(-1.6, 1, 4.6),
-				Vector3.new(1.6, 1, 4.6),
-			},
 		},
 	},
 

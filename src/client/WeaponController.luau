@@ -70,6 +70,12 @@ function WeaponController.init()
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Exclude
 		params.FilterDescendantsInstances = { char }
+		-- Сидя в машине, целимся сквозь её кузов.
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		local seatModel = hum and hum.SeatPart and hum.SeatPart.Parent
+		if seatModel and seatModel:IsA("Model") and seatModel:GetAttribute("IsVehicle") then
+			params.FilterDescendantsInstances = { char, seatModel }
+		end
 		local hit = workspace:Raycast(ray.Origin, ray.Direction * AIM_DISTANCE, params)
 		local target = if hit then hit.Position else ray.Origin + ray.Direction * AIM_DISTANCE
 		local dir = target - head.Position
