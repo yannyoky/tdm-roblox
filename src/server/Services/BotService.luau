@@ -20,6 +20,7 @@ local TeamsConfig = require(Shared.Config.Teams)
 local Weapons = require(Shared.Config.Weapons)
 local Combat = require(Shared.Config.Combat)
 local CrouchPose = require(Shared.CrouchPose)
+local CharacterLook = require(Shared.CharacterLook)
 
 local WeaponService = require(script.Parent.WeaponService)
 local PhysicsSetup = require(script.Parent.PhysicsSetup)
@@ -314,6 +315,12 @@ local function setupAnimations(bot, model: Model, hum: Humanoid)
 			end
 		end
 		animate:Destroy()
+	end
+	-- Реалистичные анимации из Config/Character важнее стандартных.
+	for name, animId in CharacterLook.botAnimations() do
+		if ids[name] then
+			ids[name] = animId
+		end
 	end
 	local animator = hum:FindFirstChildOfClass("Animator")
 	if not animator then
