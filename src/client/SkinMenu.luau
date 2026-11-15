@@ -47,7 +47,7 @@ local function optionsFor(tab: string, key: string): { any }
 	if tab == LOOK_TAB then
 		return Appearance.Options[key] or {}
 	end
-	local list = { { Id = Appearance.UNIFORM, Name = "Из формы" } }
+	local list = { { Id = Appearance.UNIFORM, Name = "Как в скине" } }
 	for _, opt in (Appearance.Clothing[tab] or {})[key] or {} do
 		table.insert(list, opt)
 	end
@@ -326,7 +326,7 @@ function SkinMenu.init()
 				rebuild()
 			end)
 		end
-		header(10, "Форма и снаряжение")
+		header(10, "Скины (готовые комплекты)")
 
 		local selected = player:GetAttribute("Skin_" .. faction) or Skins.Default[faction]
 		local coins = player:GetAttribute("Coins") or 0
@@ -375,7 +375,7 @@ function SkinMenu.init()
 			action.Size = UDim2.new(0, 120, 0, 34)
 			action.Parent = row
 
-			-- Клик по строке примеряет форму на предпросмотре.
+			-- Клик по строке примеряет комплект на предпросмотре.
 			local hit = Ui.make("TextButton", { Size = UDim2.new(1, -136, 1, 0), BackgroundTransparency = 1, Text = "", Parent = row })
 			hit.Activated:Connect(function()
 				previewSkin[faction] = id

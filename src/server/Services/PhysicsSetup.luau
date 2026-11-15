@@ -92,7 +92,7 @@ function PhysicsSetup.ragdoll(char: Model)
 	end
 	for _, part in char:GetDescendants() do
 		if part:IsA("BasePart") then
-			-- Снаряжение скина (Gear_*) не сталкивается, чтобы тело не цеплялось за мир.
+			-- Детали Gear_* (если появятся) не сталкиваются, чтобы тело не цеплялось за мир.
 			part.CanCollide = part.Name ~= "HumanoidRootPart" and string.sub(part.Name, 1, 5) ~= "Gear_"
 		end
 	end

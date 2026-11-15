@@ -1,5 +1,5 @@
--- Скины фракций и кастомизация персонажа: что открыто у игрока, выбор, покупка за монеты,
--- надевание при появлении.
+-- Скины сторон (комплекты 3D-одежды) и кастомизация персонажа: что открыто у игрока, выбор,
+-- покупка за монеты, надевание при появлении.
 -- Клиент получает атрибуты: OwnedSkins (через запятую), Skin_Bandits, Skin_Gov,
 -- Look (JSON внешности), Outfit_Bandits / Outfit_Gov (JSON одежды стороны).
 -- Предпросмотр для меню сервер собирает в PlayerGui.LookPreview: модель видна только этому игроку.
@@ -11,7 +11,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Skins = require(Shared.Config.Skins)
 local Meta = require(Shared.Config.Meta)
-local SkinApply = require(Shared.SkinApply)
 local AppearanceApply = require(Shared.AppearanceApply)
 local CharacterLook = require(Shared.CharacterLook)
 local Net = require(Shared.Net)
@@ -108,9 +107,18 @@ local function avatarDesc(player: Player): HumanoidDescription?
 	return nil
 end
 
--- Описание персонажа игрока: внешность + (в бою) одежда стороны. faction = nil — лобби.
+-- Описание персонажа игрока: внешность + (в бою) скин и одежда стороны. faction = nil — лобби.
 function SkinService.describe(player: Player, faction: string?): HumanoidDescription
-	return AppearanceApply.describe(avatarDesc(player), SkinService.look(player), faction, if faction then SkinService.outfit(player, faction) else nil)
+	if not faction then
+		return AppearanceApply.describe(avatarDesc(player), SkinService.look(player), nil)
+	end
+	return AppearanceApply.describe(
+		avatarDesc(player),
+		SkinService.look(player),
+		faction,
+		SkinService.outfit(player, faction),
+		SkinService.selected(player, faction)
+	)
 end
 
 -- Появление персонажа сразу в нужной внешности (вместо player:LoadCharacter()).
@@ -121,43 +129,26 @@ function SkinService.loadCharacter(player: Player, faction: string?)
 	if not ok then
 		warn("[SkinService] Внешность не применилась, обычное появление: ", err)
 		player:LoadCharacter()
-	elseif player.Character then
-		AppearanceApply.tag(player.Character)
 	end
 end
 
--- Надеть форму стороны поверх внешности.
+-- Скин уже надет при появлении (loadCharacter). Оставлено для совместимости вызовов.
 function SkinService.applyToPlayer(player: Player, char: Model, faction: string)
-	local skinId = SkinService.selected(player, faction)
-	local opts = { ownHat = AppearanceApply.hasOwnHat(SkinService.outfit(player, faction)) }
-	AppearanceApply.tag(char)
-	SkinApply.apply(char, skinId, opts)
+	char:SetAttribute("Skin", SkinService.selected(player, faction))
 end
 
--- Модель бота: случайная внешность, одежда и скин его стороны.
+-- Модель бота: случайная внешность, скин его стороны и иногда пара своих вещей.
 function SkinService.botModel(faction: string): Model
-	local outfit = AppearanceApply.randomOutfit(faction)
-	local desc = AppearanceApply.describe(nil, AppearanceApply.randomLook(), faction, outfit)
+	local list = Skins.Order[faction]
+	local skinId = if list then list[math.random(#list)] else nil
+	local desc = AppearanceApply.describe(nil, AppearanceApply.randomLook(), faction, AppearanceApply.randomOutfit(faction), skinId)
 	local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
 	if not ok then
 		warn("[SkinService] Внешность бота не загрузилась: ", model)
 		model = Players:CreateHumanoidModelFromDescription(Instance.new("HumanoidDescription"), Enum.HumanoidRigType.R15)
-		outfit = nil
 	end
-	AppearanceApply.tag(model)
-	local list = Skins.Order[faction]
-	if list then
-		SkinApply.apply(model, list[math.random(#list)], { ownHat = AppearanceApply.hasOwnHat(outfit) })
-	end
+	model:SetAttribute("Skin", skinId)
 	return model
-end
-
--- Случайный скин для готовой модели бота (старый путь, если модель создана не через botModel).
-function SkinService.applyToBot(model: Model, faction: string)
-	local list = Skins.Order[faction]
-	if list then
-		SkinApply.apply(model, list[math.random(#list)])
-	end
 end
 
 function SkinService.publishLook(player: Player)
@@ -176,7 +167,6 @@ local function refreshLobbyCharacter(player: Player)
 	end
 	local ok = pcall(hum.ApplyDescription, hum, SkinService.describe(player, nil))
 	if ok and player.Character == char then
-		AppearanceApply.tag(char)
 		CharacterLook.applyAnimations(char)
 	end
 end
@@ -194,18 +184,14 @@ local function buildPreview(player: Player, request)
 		local faction = request.faction
 		local look = AppearanceApply.sanitizeLook(request.look)
 		local outfit = if faction then AppearanceApply.sanitizeOutfit(faction, request.outfit) else nil
-		local desc = AppearanceApply.describe(avatarDesc(player), look, faction, outfit)
+		local skinId = request.skin
+		if faction and not (skinId and Skins.List[skinId] and Skins.List[skinId].Faction == faction) then
+			skinId = SkinService.selected(player, faction)
+		end
+		local desc = AppearanceApply.describe(avatarDesc(player), look, faction, outfit, if faction then skinId else nil)
 		local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
 		local gui = player:FindFirstChildOfClass("PlayerGui")
 		if ok and model and gui and player.Parent == Players then
-			AppearanceApply.tag(model)
-			if faction then
-				local skinId = request.skin
-				if not (skinId and Skins.List[skinId] and Skins.List[skinId].Faction == faction) then
-					skinId = SkinService.selected(player, faction)
-				end
-				SkinApply.apply(model, skinId, { ownHat = AppearanceApply.hasOwnHat(outfit) })
-			end
 			for _, inst in model:GetDescendants() do
 				if inst:IsA("Script") or inst:IsA("LocalScript") then
 					inst:Destroy()
