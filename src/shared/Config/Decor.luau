@@ -1,37 +1,78 @@
--- Оформление карт в обычной графике Roblox: свет, атмосфера и «отделка» (окна, тротуары,
--- деревья, фонари, мелочь на улицах). Сама отделка — src/server/World/Detailer.luau.
--- Реалистичная графика живёт в отдельной ветке и сюда не входит.
+-- Оформление карт: реалистичный свет, атмосфера, облака и «отделка» (окна, тротуары,
+-- деревья, фонари, мелочь на улицах). Сама отделка — src/server/World/Detailer.luau,
+-- свет — src/server/World/Ambience.luau, материалы и размытие в прицеле — src/client/Graphics.luau.
 local Decor = {}
 
 local rgb = Color3.fromRGB
 
 ------------------------------------------------------------------------
--- Свет и атмосфера. Default — для всех карт, по картам можно переопределить отдельные поля.
--- Технологию освещения (Lighting.Technology) скрипт менять не может: в Studio выберите
--- Lighting → Technology = ShadowMap (чёткие тени, дёшево) или Future.
+-- Свет и атмосфера. Default — для всех карт, по картам можно переопределить отдельные поля
+-- (таблицы эффектов сливаются по полям). Lighting.LightingStyle = Realistic (бывший Technology = Future)
+-- ставится в Studio (Properties) и хранится в месте: скрипт это свойство менять не может.
+-- Фонари включаются сами, если ClockTime вечерний (см. Lamps ниже).
 Decor.Lighting = {
 	Default = {
 		ClockTime = 14.2,
-		GeographicLatitude = 35,
-		Brightness = 2.6,
-		Ambient = rgb(70, 70, 78),
-		OutdoorAmbient = rgb(128, 128, 136),
-		ColorShift_Top = rgb(255, 244, 225),
-		EnvironmentDiffuseScale = 0.6,
-		EnvironmentSpecularScale = 0.6,
-		ShadowSoftness = 0.25,
+		GeographicLatitude = 41,
+		Brightness = 3,
 		ExposureCompensation = 0.1,
-		-- Атмосфера: лёгкая дымка, даль уходит в голубой.
-		Atmosphere = { Density = 0.22, Offset = 0.1, Color = rgb(199, 214, 230), Decay = rgb(120, 140, 165), Glare = 0.2, Haze = 1.4 },
-		-- Цветокоррекция: чуть больше контраста и цвета, тёплый оттенок.
-		ColorCorrection = { Brightness = 0.01, Contrast = 0.1, Saturation = 0.12, TintColor = rgb(255, 250, 242) },
-		Bloom = { Intensity = 0.35, Size = 24, Threshold = 1.6 },
-		SunRays = { Intensity = 0.06, Spread = 0.7 },
+		Ambient = rgb(40, 42, 48),
+		OutdoorAmbient = rgb(120, 122, 130),
+		ColorShift_Top = rgb(255, 244, 228),
+		ColorShift_Bottom = rgb(0, 0, 0),
+		EnvironmentDiffuseScale = 1,
+		EnvironmentSpecularScale = 1,
+		ShadowSoftness = 0.12,
+		Atmosphere = { Density = 0.3, Offset = 0.2, Color = rgb(199, 205, 214), Decay = rgb(110, 120, 140), Glare = 0.35, Haze = 1.6 },
+		ColorCorrection = { Brightness = 0, Contrast = 0.12, Saturation = -0.08, TintColor = rgb(255, 250, 244) },
+		Bloom = { Intensity = 0.5, Size = 26, Threshold = 1.7 },
+		SunRays = { Intensity = 0.04, Spread = 0.55 },
+		Clouds = { Cover = 0.55, Density = 0.6, Color = rgb(245, 245, 250) },
 	},
-	Industrial = { ClockTime = 15.5, Atmosphere = { Density = 0.25, Offset = 0.08, Color = rgb(205, 205, 200), Decay = rgb(140, 135, 125), Glare = 0.15, Haze = 2 } },
-	Suburb = { ClockTime = 13.5 },
-	Port = { ClockTime = 16.2, Atmosphere = { Density = 0.24, Offset = 0.1, Color = rgb(190, 210, 228), Decay = rgb(110, 135, 165), Glare = 0.3, Haze = 1.6 } },
-	Village = { ClockTime = 12.5, ColorCorrection = { Brightness = 0.01, Contrast = 0.08, Saturation = 0.18, TintColor = rgb(255, 252, 240) } },
+	-- Промзона: пасмурно, плотный смог, холодные выцветшие цвета.
+	Industrial = {
+		ClockTime = 13.4,
+		Brightness = 2.2,
+		OutdoorAmbient = rgb(125, 128, 135),
+		ColorShift_Top = rgb(225, 230, 240),
+		Atmosphere = { Density = 0.42, Offset = 0.1, Color = rgb(170, 172, 170), Decay = rgb(95, 98, 100), Glare = 0, Haze = 2.6 },
+		ColorCorrection = { Contrast = 0.14, Saturation = -0.22, TintColor = rgb(240, 245, 250) },
+		SunRays = { Intensity = 0.01 },
+		Clouds = { Cover = 0.85, Density = 0.75, Color = rgb(200, 202, 206) },
+	},
+	-- Спальный район: ясное утро, мягкое тёплое солнце, длинные тени.
+	Suburb = {
+		ClockTime = 9.3,
+		Brightness = 3.2,
+		ColorShift_Top = rgb(255, 230, 200),
+		Atmosphere = { Density = 0.26, Haze = 1.2, Glare = 0.5, Color = rgb(205, 212, 225) },
+		ColorCorrection = { Contrast = 0.1, Saturation = 0, TintColor = rgb(255, 248, 238) },
+		SunRays = { Intensity = 0.07 },
+		Clouds = { Cover = 0.4 },
+	},
+	-- Порт: закат над водой, горят фонари (ClockTime после Lamps.NightFrom).
+	Port = {
+		ClockTime = 18.1,
+		Brightness = 2.4,
+		ExposureCompensation = 0.25,
+		Ambient = rgb(45, 40, 48),
+		OutdoorAmbient = rgb(105, 95, 110),
+		ColorShift_Top = rgb(255, 170, 110),
+		Atmosphere = { Density = 0.36, Offset = 0.15, Color = rgb(215, 170, 140), Decay = rgb(120, 85, 95), Glare = 1.2, Haze = 2 },
+		ColorCorrection = { Contrast = 0.15, Saturation = 0.05, TintColor = rgb(255, 238, 225) },
+		Bloom = { Intensity = 0.8, Size = 30, Threshold = 1.4 },
+		SunRays = { Intensity = 0.12, Spread = 0.7 },
+		Clouds = { Cover = 0.6, Density = 0.5, Color = rgb(255, 205, 180) },
+	},
+	-- Деревня: летний день после обеда, тёплый и насыщенный.
+	Village = {
+		ClockTime = 16.2,
+		ColorShift_Top = rgb(255, 225, 185),
+		Atmosphere = { Density = 0.28, Haze = 1.4, Glare = 0.6, Color = rgb(210, 210, 200), Decay = rgb(130, 125, 110) },
+		ColorCorrection = { Contrast = 0.1, Saturation = 0.06, TintColor = rgb(255, 246, 232) },
+		SunRays = { Intensity = 0.08 },
+		Clouds = { Cover = 0.45 },
+	},
 }
 
 ------------------------------------------------------------------------

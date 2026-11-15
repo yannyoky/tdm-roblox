@@ -1,4 +1,4 @@
--- Окно настроек: чувствительность, поле зрения, тряска экрана, подсказки клавиш.
+-- Окно настроек: чувствительность, поле зрения, тряска экрана, подсказки клавиш, графика.
 -- Открывается из главного меню и кнопкой на панели.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -20,7 +20,7 @@ local function formatValue(def, value): string
 end
 
 function SettingsMenu.init()
-	local window, content, close = Ui.window("Настройки", UDim2.new(0, 420, 0, 400))
+	local window, content, close = Ui.window("Настройки", UDim2.new(0, 420, 0, 480))
 	close.Activated:Connect(Menus.close)
 
 	local refreshers: { [string]: () -> () } = {}

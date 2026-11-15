@@ -86,8 +86,9 @@ end
 ------------------------------------------------------------------------
 -- Готовые модели
 
+-- ServerStorage/DecorModels, а если её нет — ServerStorage/RealisticModels (так назывался слот раньше).
 local function modelsFolder(): Instance?
-	return ServerStorage:FindFirstChild(MODELS_FOLDER)
+	return ServerStorage:FindFirstChild(MODELS_FOLDER) or ServerStorage:FindFirstChild("RealisticModels")
 end
 
 -- Случайная модель из слота: либо модель с таким именем, либо папка с несколькими моделями.

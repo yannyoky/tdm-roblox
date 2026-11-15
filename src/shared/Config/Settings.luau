@@ -1,7 +1,7 @@
 -- Настройки игрока. Сохраняются на сервере вместе с прогрессом.
 -- Type: "Number" (ползунок Min..Max с шагом Step) или "Toggle".
 return {
-	Order = { "FirstPerson", "Sensitivity", "AimSensitivity", "FieldOfView", "ScreenShake", "KeyHints" },
+	Order = { "FirstPerson", "Sensitivity", "AimSensitivity", "FieldOfView", "ScreenShake", "KeyHints", "AimBlur" },
 	List = {
 		Sensitivity = { Type = "Number", Name = "Чувствительность мыши", Min = 0.2, Max = 3, Step = 0.1, Default = 1 },
 		AimSensitivity = { Type = "Number", Name = "Чувствительность в прицеле", Min = 0.2, Max = 1.5, Step = 0.05, Default = 0.6 },
@@ -9,5 +9,7 @@ return {
 		FirstPerson = { Type = "Toggle", Name = "Вид от первого лица (V)", Default = true },
 		ScreenShake = { Type = "Toggle", Name = "Тряска экрана", Default = true },
 		KeyHints = { Type = "Toggle", Name = "Подсказки клавиш", Default = true },
+		-- Размытие всего, кроме цели, когда смотришь в прицел.
+		AimBlur = { Type = "Toggle", Name = "Размытие в прицеле", Default = true },
 	},
 }
