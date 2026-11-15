@@ -127,10 +127,12 @@ function SkinApply.apply(model: Model, skinId: string?, opts: { ownHat: boolean?
 	local ownHat = opts ~= nil and opts.ownHat == true
 	local hasHeadGear = false
 	local coversHair = false
+	local hasMask = false
 	for _, g in def.Gear do
 		if HEAD_GEAR[g.Kind] and not ownHat then
 			hasHeadGear = true
 			coversHair = coversHair or HIDES_HAIR[g.Kind] == true
+			hasMask = hasMask or g.Kind == "Balaclava"
 		end
 	end
 
@@ -141,7 +143,9 @@ function SkinApply.apply(model: Model, skinId: string?, opts: { ownHat: boolean?
 			local layered = inst:FindFirstChildWhichIsA("WrapLayer", true) ~= nil
 			local kind = inst.AccessoryType
 			local fromLook = inst:GetAttribute("Look") == true
-			local headClash = hasHeadGear and (kind == Enum.AccessoryType.Hat or kind == Enum.AccessoryType.Face)
+			-- Шляпы мешают каске/кепке формы, лицевые вещи — балаклаве, причёска — шлему.
+			local headClash = hasHeadGear and kind == Enum.AccessoryType.Hat
+				or hasMask and kind == Enum.AccessoryType.Face
 				or coversHair and kind == Enum.AccessoryType.Hair
 			if headClash or (not fromLook and (layered or CLOTHING_TYPES[kind])) then
 				inst:Destroy()

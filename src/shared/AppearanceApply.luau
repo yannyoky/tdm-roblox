@@ -106,7 +106,6 @@ function AppearanceApply.describe(base: HumanoidDescription?, look: { [string]: 
 			table.insert(faceItems, tostring(opt.Asset))
 		end
 	end
-	desc.FaceAccessory = table.concat(faceItems, ",")
 
 	if faction then
 		-- В бою одежда аватара заменяется формой стороны и выбранными вещами.
@@ -120,6 +119,9 @@ function AppearanceApply.describe(base: HumanoidDescription?, look: { [string]: 
 			local piece = outfit and Appearance.findIn(pieces[slot.Key], outfit[slot.Key])
 			if piece and piece.Hat then
 				desc.HatAccessory = tostring(piece.Hat)
+			end
+			if piece and piece.Face then
+				table.insert(faceItems, tostring(piece.Face))
 			end
 			for _, item in (piece and piece.Layers) or {} do
 				local kind = accessoryType(item.Type)
@@ -138,6 +140,7 @@ function AppearanceApply.describe(base: HumanoidDescription?, look: { [string]: 
 		end)
 	end
 
+	desc.FaceAccessory = table.concat(faceItems, ",")
 	CharacterLook.applyToDescription(desc)
 	return desc
 end
@@ -153,15 +156,19 @@ end
 
 -- Случайная внешность для бота.
 function AppearanceApply.randomLook(): { [string]: any }
+	local gender = if math.random() < 0.8 then "M" else "F"
 	local look = { Tone = math.random(#Appearance.Tones) }
 	for _, slot in Appearance.LookSlots do
 		local pool = {}
 		for _, opt in Appearance.Options[slot.Key] do
-			if opt.Id ~= Appearance.AVATAR and not opt.NoBots then
+			if opt.Id ~= Appearance.AVATAR and (opt.Gender == nil or opt.Gender == gender) then
 				table.insert(pool, opt.Id)
 			end
 		end
 		look[slot.Key] = if #pool > 0 then pool[math.random(#pool)] else Appearance.DefaultLook[slot.Key]
+	end
+	if gender == "F" or math.random() < 0.4 then
+		look.Beard = "none"
 	end
 	if math.random() < 0.6 then
 		look.Glasses = "none"
