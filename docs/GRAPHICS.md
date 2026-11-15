@@ -14,6 +14,8 @@
 | Приглушённые цвета карты, высотки на горизонте за краем карты | `server/World/Realism.luau`, `Config/Graphics.luau` → `Desaturate`, `Skyline` |
 | Реалистичные деревья и кусты: модели из `ServerStorage/DecorModels` или `RealisticModels` (папки `Trees`, `Bushes`), иначе меши | `server/World/Detailer.luau` |
 | Анимации персонажей (пакет Roblox Rthro) и пропорции тела | `Config/Character.luau`, `shared/CharacterLook.luau`, `server/Services/CharacterAnimService.luau` |
+| Поза с оружием со стороны: две руки на оружии, наклон корпуса и головы за прицелом, отдача при выстреле, оружие у груди на бегу | `client/WeaponPose.luau` |
+| Оружие от первого лица: покачивание, отдача (назад, вверх, вбок), спринт, перезарядка | `client/Viewmodel.luau` |
 
 Настроения карт: Промзона — пасмурно и смог, Спальный район — ясное утро, Порт — закат с фонарями,
 Деревня — тёплый день.
@@ -29,6 +31,9 @@
 - **ServerStorage/DecorModels** (или прежняя `RealisticModels`): `Container` и `Crate` — модель или папка с
   моделями, заменяют процедурные контейнеры и ящики. Прежняя коробка остаётся невидимой для столкновений и попаданий.
   Скрипты из моделей удаляются при вставке на карту.
+- **ServerStorage/WeaponModels/<Id>** (Id из `Config/Weapons`, например `Rifle`, `Pistol`): модель оружия
+  с деталью `Handle`, ствол вдоль −Z, по желанию Attachment `Grip` (хват) и `Muzzle` (дуло). Если модели нет,
+  берутся меши из `shared/WeaponMeshes.luau`, а если нет и их — процедурная модель.
 - Деревья и кусты на карте — меши из `server/World/DecorAssets.luau`.
 
 ## Что дальше (Blender)

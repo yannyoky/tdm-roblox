@@ -338,6 +338,7 @@ local lastCam: CFrame? = nil
 local recoilBack = spring(260, 20)
 local recoilPitch = spring(220, 16)
 local recoilRoll = spring(200, 14)
+local recoilYaw = spring(240, 18) -- увод ствола вбок, у каждого выстрела свой
 local camPunch = spring(180, 18)
 local sway = v(0, 0, 0)
 local bobT = 0
@@ -518,6 +519,7 @@ local function update(dt: number)
 	stepSpring(recoilBack, dt)
 	stepSpring(recoilPitch, dt)
 	stepSpring(recoilRoll, dt)
+	stepSpring(recoilYaw, dt)
 
 	-- Доставание: оружие поднимается снизу.
 	local e = 1 - (1 - math.clamp(b.equipT / 0.4, 0, 1)) ^ 3
@@ -538,7 +540,7 @@ local function update(dt: number)
 		local k = math.sin((reloadP - 0.72) / 0.08 * math.pi)
 		local_ *= CF(0, 0.05 * k, 0) * ANG(0.06 * k, 0, 0)
 	end
-	local_ *= CF(0, 0, recoilBack.x) * ANG(recoilPitch.x, 0, recoilRoll.x)
+	local_ *= CF(0, 0, recoilBack.x) * ANG(recoilPitch.x, recoilYaw.x, recoilRoll.x)
 
 	local swingCf = CFrame.identity
 	if swingStart then
@@ -657,6 +659,7 @@ function Viewmodel.onFire()
 	recoilBack.v += 2.2 * r
 	recoilPitch.v += 0.8 * r
 	recoilRoll.v += (math.random() - 0.5) * 0.8 * r
+	recoilYaw.v += (math.random() - 0.5) * 0.5 * r
 	camPunch.v += 0.07 * r
 
 	-- Вспышка у дула и гильза.
