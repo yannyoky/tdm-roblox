@@ -262,26 +262,40 @@ local function setupRam(model: Model)
 	end
 end
 
--- Выходящий полсекунды не задевает кузов, чтобы тот не вытолкнул и не уронил его.
-local function passThroughHull(char: Instance?)
+-- Сидящий в машине не задевает её кузов и колёса (группа CharactersExiting). Группу ставим сразу
+-- при посадке: тогда в момент прыжка она уже есть у компьютера игрока, и кузов его не роняет.
+-- Обратно — только когда боец стоит снаружи машины.
+local function setInVehicleGroup(char: Instance?, on: boolean)
 	if not char then
 		return
 	end
+	local from, to = if on then "Characters" else "CharactersExiting", if on then "CharactersExiting" else "Characters"
 	for _, part in char:GetDescendants() do
-		if part:IsA("BasePart") and part.CollisionGroup == "Characters" then
-			part.CollisionGroup = "CharactersExiting"
+		if part:IsA("BasePart") and part.CollisionGroup == from then
+			part.CollisionGroup = to
 		end
 	end
-	task.delay(0.6, function()
-		for _, part in char:GetDescendants() do
-			if part:IsA("BasePart") and part.CollisionGroup == "CharactersExiting" then
-				part.CollisionGroup = "Characters"
-			end
-		end
-	end)
 end
 
--- Ставит вышедшего у двери его места. Если там стена — с другой стороны, иначе как есть.
+local overlapParams = OverlapParams.new()
+overlapParams.FilterType = Enum.RaycastFilterType.Include
+
+local function insideAnyHull(root: BasePart): boolean
+	local hulls = {}
+	for _, model in folder:GetChildren() do
+		for _, part in model:GetChildren() do
+			if part:IsA("BasePart") and part.CollisionGroup == "VehicleHull" then
+				table.insert(hulls, part)
+			end
+		end
+	end
+	overlapParams.FilterDescendantsInstances = hulls
+	overlapParams.CollisionGroup = "Default"
+	return #workspace:GetPartBoundsInBox(root.CFrame, Vector3.new(2, 5, 1), overlapParams) > 0
+end
+
+-- Ставит вышедшего у двери его места. Если там стена — с другой стороны, иначе где вышел.
+-- Сервер узнаёт о выходе раньше, чем у персонажа обнуляется SeatPart, поэтому немного ждём.
 local exitParams = RaycastParams.new()
 exitParams.FilterType = Enum.RaycastFilterType.Exclude
 placeAtExit = function(model: Model, seat: BasePart, hum: Humanoid)
@@ -289,27 +303,37 @@ placeAtExit = function(model: Model, seat: BasePart, hum: Humanoid)
 	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 	local chassis = model.PrimaryPart
 	local exit = chassis and chassis:FindFirstChild(seat:GetAttribute("Exit") or "") :: Attachment?
-	if not root or not exit or hum.Health <= 0 or hum.SeatPart then
-		return
+	local t0 = os.clock()
+	while hum.SeatPart == seat and os.clock() - t0 < 0.4 do
+		task.wait()
 	end
-	exitParams.FilterDescendantsInstances = { model, char }
-	local look = chassis.CFrame.LookVector
-	local candidates = { exit.WorldPosition }
-	-- запасной вариант: зеркально, на другой стороне машины
-	local mirrored = chassis.CFrame:PointToWorldSpace(exit.Position * Vector3.new(-1, 1, 1))
-	table.insert(candidates, mirrored)
-	for _, pos in candidates do
-		local from = seat.Position + Vector3.new(0, 1.5, 0)
-		local blocked = workspace:Raycast(from, pos - from, exitParams)
-		if not blocked then
-			local flat = Vector3.new(look.X, 0, look.Z)
-			if flat.Magnitude < 0.1 then
-				flat = Vector3.new(0, 0, -1)
+	if root and exit and chassis and hum.Health > 0 and hum.SeatPart == nil and seat.Occupant ~= hum then
+		exitParams.FilterDescendantsInstances = { model, char :: Instance }
+		local look = chassis.CFrame.LookVector
+		local candidates = { exit.WorldPosition }
+		-- запасной вариант: зеркально, на другой стороне машины
+		table.insert(candidates, chassis.CFrame:PointToWorldSpace(exit.Position * Vector3.new(-1, 1, 1)))
+		for _, pos in candidates do
+			local from = seat.Position + Vector3.new(0, 1.5, 0)
+			if not workspace:Raycast(from, pos - from, exitParams) then
+				local flat = Vector3.new(look.X, 0, look.Z)
+				if flat.Magnitude < 0.1 then
+					flat = Vector3.new(0, 0, -1)
+				end
+				char:PivotTo(CFrame.lookAt(pos, pos + flat.Unit))
+				root.AssemblyLinearVelocity = chassis.AssemblyLinearVelocity
+				break
 			end
-			char:PivotTo(CFrame.lookAt(pos, pos + flat.Unit))
-			root.AssemblyLinearVelocity = chassis.AssemblyLinearVelocity
-			return
 		end
+	end
+	-- Возвращаем обычные столкновения, когда боец уже не внутри машины (не дольше 3 с).
+	task.wait(0.3)
+	local t1 = os.clock()
+	while root and root.Parent and hum.SeatPart == nil and os.clock() - t1 < 3 and insideAnyHull(root) do
+		task.wait(0.1)
+	end
+	if hum.SeatPart == nil then
+		setInVehicleGroup(char, false)
 	end
 end
 
@@ -394,8 +418,7 @@ local function setupVehicle(model: Model, record: PadRecord?)
 			local hum = seat.Occupant
 			if hum == nil and lastHum then
 				local left = lastHum
-				passThroughHull(left.Parent)
-				task.defer(placeAtExit, model, seat, left)
+				task.spawn(placeAtExit, model, seat, left)
 			end
 			-- Сидящий ничего не весит: тело бойца становится частью машины, и его масса высоко
 			-- над осями раскачивала подвеску.
@@ -404,6 +427,7 @@ local function setupVehicle(model: Model, record: PadRecord?)
 			end
 			if hum then
 				setMassless(hum.Parent, true)
+				setInVehicleGroup(hum.Parent, true)
 			end
 			lastHum = hum
 			local player = hum and Players:GetPlayerFromCharacter(hum.Parent)
