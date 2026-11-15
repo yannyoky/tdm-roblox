@@ -215,7 +215,7 @@ local function spawnEntity(entity, forceLobby: boolean?)
 		return
 	end
 	local onArena = phase == "Match" and key ~= nil and not forceLobby
-	player:LoadCharacter()
+	SkinService.loadCharacter(player, if onArena then key :: string else nil)
 	local char = player.Character
 	if not char or player.Parent ~= Players then
 		return

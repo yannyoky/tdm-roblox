@@ -17,6 +17,8 @@ for _, name in { "TShirt", "Shirt", "Pants", "Jacket", "Sweater", "Shorts", "Lef
 	end
 end
 local HEAD_GEAR = { Helmet = true, Cap = true, Beanie = true, Balaclava = true }
+-- Под этим причёска торчала бы наружу, поэтому её снимаем.
+local HIDES_HAIR = { Helmet = true, Beanie = true, Balaclava = true }
 
 local SHIRT_PARTS = { "UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm", "Torso", "Left Arm", "Right Arm" }
 local PANTS_PARTS = { "LeftUpperLeg", "LeftLowerLeg", "RightUpperLeg", "RightLowerLeg", "Left Leg", "Right Leg" }
@@ -109,7 +111,9 @@ local function buildGear(model: Model, kind: string, color: Color3, skinColor: C
 end
 
 -- Снять прошлый скин и надеть новый. skinId может быть nil: тогда только снимается старый.
-function SkinApply.apply(model: Model, skinId: string?)
+-- opts.ownHat — игрок выбрал свой головной убор: шлем/кепку формы не надеваем.
+-- Аксессуары с атрибутом Look надеты из меню «Персонаж» и остаются (кроме конфликтов с головой).
+function SkinApply.apply(model: Model, skinId: string?, opts: { ownHat: boolean? }?)
 	for _, inst in model:GetChildren() do
 		if inst:IsA("BasePart") and string.sub(inst.Name, 1, 5) == "Gear_" then
 			inst:Destroy()
@@ -120,10 +124,15 @@ function SkinApply.apply(model: Model, skinId: string?)
 		return
 	end
 
+	local ownHat = opts ~= nil and opts.ownHat == true
 	local hasHeadGear = false
+	local coversHair = false
+	local hasMask = false
 	for _, g in def.Gear do
-		if HEAD_GEAR[g.Kind] then
+		if HEAD_GEAR[g.Kind] and not ownHat then
 			hasHeadGear = true
+			coversHair = coversHair or HIDES_HAIR[g.Kind] == true
+			hasMask = hasMask or g.Kind == "Balaclava"
 		end
 	end
 
@@ -133,7 +142,12 @@ function SkinApply.apply(model: Model, skinId: string?)
 		elseif inst:IsA("Accessory") then
 			local layered = inst:FindFirstChildWhichIsA("WrapLayer", true) ~= nil
 			local kind = inst.AccessoryType
-			if layered or CLOTHING_TYPES[kind] or (hasHeadGear and (kind == Enum.AccessoryType.Hat or kind == Enum.AccessoryType.Face)) then
+			local fromLook = inst:GetAttribute("Look") == true
+			-- Шляпы мешают каске/кепке формы, лицевые вещи — балаклаве, причёска — шлему.
+			local headClash = hasHeadGear and kind == Enum.AccessoryType.Hat
+				or hasMask and kind == Enum.AccessoryType.Face
+				or coversHair and kind == Enum.AccessoryType.Hair
+			if headClash or (not fromLook and (layered or CLOTHING_TYPES[kind])) then
 				inst:Destroy()
 			end
 		end
@@ -167,7 +181,9 @@ function SkinApply.apply(model: Model, skinId: string?)
 	end
 
 	for _, g in def.Gear do
-		buildGear(model, g.Kind, g.Color, skinColor)
+		if not (ownHat and HEAD_GEAR[g.Kind]) then
+			buildGear(model, g.Kind, g.Color, skinColor)
+		end
 	end
 	model:SetAttribute("Skin", def.Id)
 end
