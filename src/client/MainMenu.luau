@@ -86,7 +86,7 @@ function MainMenu.init()
 		Ui.make("UIGridLayout", { CellSize = UDim2.new(0.5, -5, 0, 38), CellPadding = UDim2.new(0, 10, 0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
 	local links = {
-		{ "Скины", "Skins" },
+		{ "Персонаж", "Skins" },
 		{ "Инвентарь", "Inventory" },
 		{ "Прогресс", "Progress" },
 		{ "Магазин", "Shop" },

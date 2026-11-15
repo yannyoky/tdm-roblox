@@ -16,7 +16,6 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BotsConfig = require(Shared.Config.Bots)
-local TeamsConfig = require(Shared.Config.Teams)
 local Weapons = require(Shared.Config.Weapons)
 local Combat = require(Shared.Config.Combat)
 local CrouchPose = require(Shared.CrouchPose)
@@ -279,16 +278,7 @@ function BotService.fromCharacter(model: Model)
 end
 
 local function buildCharacter(bot): Model
-	local color = TeamsConfig.List[bot.TeamKey].Color
-	local desc = Instance.new("HumanoidDescription")
-	desc.HeadColor = Color3.fromRGB(234, 184, 146)
-	desc.LeftArmColor = desc.HeadColor
-	desc.RightArmColor = desc.HeadColor
-	desc.TorsoColor = color
-	desc.LeftLegColor = color:Lerp(Color3.new(0, 0, 0), 0.5)
-	desc.RightLegColor = desc.LeftLegColor
-	local model = Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
-	SkinService.applyToBot(model, bot.TeamKey)
+	local model = SkinService.botModel(bot.TeamKey)
 	model.Name = bot.DisplayName
 	model:SetAttribute("BotId", bot.Id)
 	model:SetAttribute("TeamKey", bot.TeamKey)

@@ -36,6 +36,8 @@ local DEFAULT_DATA = {
 	RatedMatches = 0,
 	OwnedSkins = {}, -- скины, купленные за монеты или полученные в сезоне
 	Skin = { Bandits = "b_street", Gov = "g_patrol" }, -- выбранный скин каждой стороны
+	Look = {}, -- внешность персонажа (Config/Appearance), пустое = по умолчанию
+	Outfit = { Bandits = {}, Gov = {} }, -- выбранная одежда каждой стороны
 	Settings = {}, -- настройки управления и экрана (см. Config/Settings)
 }
 
