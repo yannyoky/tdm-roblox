@@ -14,6 +14,15 @@ function PhysicsSetup.init()
 	PhysicsService:RegisterCollisionGroup(CHARACTER_GROUP)
 	-- Бойцы не толкают и не блокируют друг друга телами, но сталкиваются с миром.
 	PhysicsService:CollisionGroupSetCollidable(CHARACTER_GROUP, CHARACTER_GROUP, false)
+	-- Колёса машин не задевают бойцов (и сидящих внутри): тело упирается в кузов, а не в колесо.
+	PhysicsService:RegisterCollisionGroup("VehicleWheels")
+	PhysicsService:CollisionGroupSetCollidable("VehicleWheels", CHARACTER_GROUP, false)
+	-- Выходящий из машины полсекунды не задевает её кузов, иначе кузов выталкивает его и роняет.
+	PhysicsService:RegisterCollisionGroup("VehicleHull")
+	PhysicsService:RegisterCollisionGroup("CharactersExiting")
+	PhysicsService:CollisionGroupSetCollidable("CharactersExiting", "VehicleHull", false)
+	PhysicsService:CollisionGroupSetCollidable("CharactersExiting", "VehicleWheels", false)
+	PhysicsService:CollisionGroupSetCollidable("CharactersExiting", CHARACTER_GROUP, false)
 
 	-- Присед: клиент просит, сервер ставит позу, чтобы её видели все и опустились хитбоксы.
 	-- Наклон прицела игрока: по нему другие клиенты поднимают и опускают руки с оружием.
@@ -39,7 +48,7 @@ function PhysicsSetup.init()
 end
 
 local function setGroup(inst: Instance)
-	if inst:IsA("BasePart") then
+	if inst:IsA("BasePart") and inst.CollisionGroup ~= "CharactersExiting" then
 		inst.CollisionGroup = CHARACTER_GROUP
 	end
 end

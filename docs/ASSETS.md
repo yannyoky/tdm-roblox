@@ -9,7 +9,7 @@
 | Звуки выстрелов (свой звучит сразу при нажатии), перезарядки (у каждого оружия своя), шагов (в такт касанию стопы), ножа, сухого щелчка | `src/shared/Config/Sounds.luau` | бесплатные Audio (авторы указаны в комментариях) |
 | Модели оружия: АК, MP5, M1014, M60, AWP, Макаров, нож, граната, светошумовая | `src/server/Services/WeaponMeshes.luau` | «LowPolygon Gun Pack» (9327209214), нож из «STREETMODELS» (3495901227) |
 | Одежда: Авторитет (смокинг), силовики (полиция, синяя форма, камуфляж, спецназ) | `ShirtTemplate` / `PantsTemplate` в `src/shared/Config/Skins.luau` | классическая одежда из бесплатных NPC-моделей |
-| Кузова машин: Мерседес W124, Toyota Tacoma, Mercedes Vito (банда); полицейский седан, Chevrolet Tahoe, Mercedes Unimog (силовики) | `src/server/World/VehicleMeshes.luau` | «Low-Poly Vehicle/Car Pack» (93588406843965), полицейская из «Low Poly Cars Pack» (9127235869) |
+| Кузова машин: Мерседес W124, Toyota Tacoma, Mercedes Vito (банда); полицейский седан, Chevrolet Tahoe, Mercedes Unimog (силовики) | `src/server/World/VehicleModels.luau` | «Low-Poly Vehicle/Car Pack» (93588406843965), полицейская из «Low Poly Cars Pack» (9127235869) |
 | Деревья и кусты | `src/server/World/DecorAssets.luau` | «Low-Poly Oak Trees» (8556375773) и «Low-Poly Pine Trees» (8559395722) от Cliosow |
 | Свет, дымка, цветокоррекция, количество деревьев, мелочи и пятен на картах | `src/shared/Config/Decor.luau` | — |
 | Отделка карт: окна, двери, карнизы, тротуары, разметка, фонари, бочки, баки, поддоны | `src/server/World/Detailer.luau` | процедурно, из деталей |
@@ -19,7 +19,7 @@
 - **Звук**: найдите в Creator Store → Audio, скопируйте id, впишите в `Sounds.luau` как `id(123456)`.
 - **Оружие**: проще всего положить свою модель в `ServerStorage/WeaponModels/<Id оружия>` (с деталью `Handle`), она важнее записи в `WeaponMeshes.luau`. Чтобы вернуть старую модель из деталей, удалите запись оружия из `WeaponMeshes.luau`.
 - **Одежда**: нужен id **картинки** шаблона (не id товара). Вставьте модель NPC в Studio, у её `Shirt`/`Pants` возьмите `ShirtTemplate`/`PantsTemplate`.
-- **Машина**: физика (шасси, колёса, сиденья) прежняя, меш только рисуется поверх. Чтобы вернуть кузов из деталей, удалите запись из `VehicleMeshes.luau` (и при желании верните `Width`/`Length` в `Config/Vehicles.luau`).
+- **Машина**: в `VehicleModels.luau` у каждой машины меш кузова и её форма (колёса, коробки столкновений, сиденья). Колёса в мешах из пака нарисованы вместе с кузовом, поэтому поверх них надеты свои крутящиеся колёса. Для новой машины нужно снять с меша положение и радиус колёс и подогнать коробки (`ShowHull = true` в `Config/Vehicles.luau`). Лучше всего — меш кузова без колёс (например, из Blender), тогда колёса будут только свои.
 - **Деревья и мелочь**: числа в `Decor.Scatter`, пятна на земле в `Decor.Patches`.
 
 ## В Studio один раз

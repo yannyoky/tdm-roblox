@@ -108,12 +108,9 @@ groundParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local lastDriven: Model? = nil
 
--- Управление как в аркадных гонках.
-local MIN_RADIUS = 11 -- минимальный радиус разворота, студов
-local MAX_YAW_LOW = 2.3 -- скорость разворота на малой скорости, рад/с
-local MAX_YAW_HIGH = 1.25 -- на максимальной скорости
+-- Управление как в аркадных гонках. Радиус разворота, скорость разворота и сцепление у каждой
+-- машины свои (Config/Vehicles: MinRadius, YawLow, YawHigh, Grip), здесь только общие числа.
 local YAW_RESPONSE = 9 -- как быстро машина выходит на нужную скорость разворота (1/с)
-local GRIP = 7 -- как быстро гасится скольжение боком (1/с)
 local HANDBRAKE_GRIP = 0.9
 local steerSmooth = 0
 local lastDt = 1 / 60
@@ -140,7 +137,14 @@ local function drive(model: Model, seat: VehicleSeat)
 	end
 	local maxSpeed = model:GetAttribute("MaxSpeed") or 60
 	local reverse = model:GetAttribute("ReverseSpeed") or 20
-	local torque = model:GetAttribute("Torque") or 8000
+	local driveType = model:GetAttribute("Drive") or "AWD"
+	local driven = if driveType == "AWD" then 4 else 2
+	local torque = (model:GetAttribute("Torque") or 32000) / driven -- на одно ведущее колесо
+	local brake = (model:GetAttribute("Brake") or 40000) / 4 -- тормоз на каждое колесо
+	local MIN_RADIUS = model:GetAttribute("MinRadius") or 11
+	local MAX_YAW_LOW = model:GetAttribute("YawLow") or 2.3
+	local MAX_YAW_HIGH = model:GetAttribute("YawHigh") or 1.25
+	local GRIP = model:GetAttribute("Grip") or 7
 	local radius = model:GetAttribute("WheelRadius") or 1.5
 	local maxSteer = model:GetAttribute("SteerAngle") or 30
 	local driveSign = model:GetAttribute("DriveSign") or -1
@@ -151,21 +155,22 @@ local function drive(model: Model, seat: VehicleSeat)
 	local throttle, steer = seat.ThrottleFloat, seat.SteerFloat
 	local forward = root.AssemblyLinearVelocity:Dot(root.CFrame.LookVector)
 
-	local wheelSpeed, wheelTorque
+	-- braking = true: тормозят все четыре колеса; иначе крутят только ведущие (Drive: RWD/FWD/AWD).
+	local wheelSpeed, wheelTorque, braking
 	if throttle > 0.05 then
 		if forward < -3 then
-			wheelSpeed, wheelTorque = 0, torque * 2 -- тормозим перед сменой направления
+			wheelSpeed, wheelTorque, braking = 0, brake, true -- тормозим перед сменой направления
 		else
-			wheelSpeed, wheelTorque = maxSpeed / radius * throttle, torque
+			wheelSpeed, wheelTorque, braking = maxSpeed / radius * throttle, torque, false
 		end
 	elseif throttle < -0.05 then
 		if forward > 3 then
-			wheelSpeed, wheelTorque = 0, torque * 2
+			wheelSpeed, wheelTorque, braking = 0, brake, true
 		else
-			wheelSpeed, wheelTorque = -reverse / radius, torque
+			wheelSpeed, wheelTorque, braking = -reverse / radius, torque, false
 		end
 	else
-		wheelSpeed, wheelTorque = 0, torque * 0.08 -- накат с лёгким сопротивлением
+		wheelSpeed, wheelTorque, braking = 0, brake * 0.05, true -- накат с лёгким сопротивлением
 	end
 
 	-- Руль как в аркадных гонках (GTA): плавно, но быстро доворачивается за ~0.15 с,
@@ -200,17 +205,17 @@ local function drive(model: Model, seat: VehicleSeat)
 		local mass = root.AssemblyMass
 		local inertia = mass * (len * len + width * width) / 12
 		local maxTorque = mass * workspace.Gravity * len * 2
-		local torque = 0
+		local yawTorque = 0
 		if down then -- в воздухе не крутим
 			-- Трение колёс сильно мешает развороту, поэтому момент большой.
 			local gain = if handbrake and steer == 0 then 4 else 70
-			torque = math.clamp(inertia * gain * (desired - current), -maxTorque, maxTorque)
+			yawTorque = math.clamp(inertia * gain * (desired - current), -maxTorque, maxTorque)
 			-- И немного доводим скорость разворота напрямую (физику машины считает компьютер водителя).
 			local blend = math.min(1, (if handbrake and steer == 0 then 1.5 else YAW_RESPONSE) * dt)
 			local up = root.CFrame.UpVector
 			root.AssemblyAngularVelocity += up * ((desired - current) * blend)
 		end
-		assist.Torque = Vector3.new(0, torque, 0)
+		assist.Torque = Vector3.new(0, yawTorque, 0)
 	end
 
 	-- Сцепление с дорогой: машина едет туда, куда смотрит, а не скользит боком.
@@ -226,7 +231,7 @@ local function drive(model: Model, seat: VehicleSeat)
 
 	-- Ручник: задние колёса стоят, машина тормозит юзом.
 	if handbrake then
-		wheelSpeed, wheelTorque = 0, torque * 0.6
+		wheelSpeed, wheelTorque, braking = 0, brake * 0.6, true
 	end
 
 	for _, c in driveFolder:GetChildren() do
@@ -237,9 +242,13 @@ local function drive(model: Model, seat: VehicleSeat)
 					-- передние колёса на ручнике катятся свободно
 					c.AngularVelocity = 0
 					c.MotorMaxTorque = 0
-				else
+				elseif braking or c:GetAttribute("Driven") then
 					c.AngularVelocity = driveSign * wheelSpeed
 					c.MotorMaxTorque = wheelTorque
+				else
+					-- неведущее колесо катится само
+					c.AngularVelocity = 0
+					c.MotorMaxTorque = 0
 				end
 			else
 				c.TargetAngle = angle

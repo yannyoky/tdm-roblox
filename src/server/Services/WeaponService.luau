@@ -161,6 +161,13 @@ local function traceBullet(shooter, char: Model, def, weaponId: string, origin: 
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { char }
+	-- Из своей машины стреляют наружу: её кузов пулю не останавливает.
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local vehicles = hum and hum.SeatPart and getVehicleService()
+	local ownVehicle = vehicles and vehicles.fromPart(hum.SeatPart)
+	if ownVehicle then
+		params.FilterDescendantsInstances = { char, ownVehicle }
+	end
 
 	local from = origin
 	local remaining = def.Range
