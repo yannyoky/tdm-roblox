@@ -672,6 +672,21 @@ local function meshProp(parent: Instance, name: string, parts, cf: CFrame, k: nu
 	return m
 end
 
+-- Дерево или куст: реалистичная модель из ServerStorage/DecorModels (или RealisticModels),
+-- папки Trees и Bushes, если они есть; иначе меш из DecorAssets.
+-- k — тот же масштаб, что у меша: высота дерева ~ 35 * k студов, куста ~ 4.5 * k.
+local function plant(parent: Instance, kind: string, parts, cf: CFrame, k: number, leafColor: Color3, rng: Random): Model
+	local slot = if kind == "Bush" then "Bushes" else "Trees"
+	local template = pickModel(slot, rng)
+	if template then
+		local height = if kind == "Bush" then 4.5 * k else 35 * k
+		local m = placeModel(template, cf, parent, Vector3.new(0, height, 0), false)
+		m.Name = kind
+		return m
+	end
+	return meshProp(parent, kind, parts, cf, k, leafColor)
+end
+
 ------------------------------------------------------------------------
 -- Уличная мелочь: твёрдые укрытия из деталей.
 
@@ -944,7 +959,7 @@ function Detailer.scatter(geo: Instance, mapId: string)
 				local k = if isTree then rng:NextNumber(Config.TreeScale[1], Config.TreeScale[2]) else rng:NextNumber(0.7, 1.15)
 				local leafColor = Config.LeafColors[rng:NextInteger(1, #Config.LeafColors)]
 				local cf = CFrame.new(pos) * yaw(rng:NextNumber(0, 360))
-				local m = meshProp(out, kind, list[rng:NextInteger(1, #list)], cf, k, leafColor)
+				local m = plant(out, kind, list[rng:NextInteger(1, #list)], cf, k, leafColor, rng)
 				if isTree then
 					-- Невидимый ствол: сквозь дерево не пройти, пуля в нём застревает.
 					local trunkH = 12 * k / 0.7
@@ -1100,7 +1115,8 @@ end
 local function streetTree(parent: Instance, cf: CFrame, rng: Random)
 	local k = rng:NextNumber(0.38, 0.52)
 	local leafColor = Config.LeafColors[rng:NextInteger(1, #Config.LeafColors)]
-	local m = meshProp(parent, "StreetTree", Assets.Oak[rng:NextInteger(1, #Assets.Oak)], cf * yaw(rng:NextNumber(0, 360)), k, leafColor)
+	local m = plant(parent, "Oak", Assets.Oak[rng:NextInteger(1, #Assets.Oak)], cf * yaw(rng:NextNumber(0, 360)), k, leafColor, rng)
+	m.Name = "StreetTree"
 	local trunkH = 12 * k / 0.7
 	local trunk = Instance.new("Part")
 	trunk.Name = "TreeCollider"

@@ -11,6 +11,9 @@
 | Отделка карт: окна, карнизы, тротуары, разметка, фонари, деревья, мелочь на улицах, дворы, базы | `server/World/Detailer.luau`, `Config/Decor.luau` |
 | Земля из Terrain с травой, свет в зданиях | `server/World/Realism.luau`, `Config/Graphics.luau` |
 | PBR-материалы из MaterialService, размытие в прицеле | `client/Graphics.luau`, `Config/Graphics.luau` |
+| Приглушённые цвета карты, высотки на горизонте за краем карты | `server/World/Realism.luau`, `Config/Graphics.luau` → `Desaturate`, `Skyline` |
+| Реалистичные деревья и кусты: модели из `ServerStorage/DecorModels` или `RealisticModels` (папки `Trees`, `Bushes`), иначе меши | `server/World/Detailer.luau` |
+| Анимации персонажей (пакет Roblox Rthro) и пропорции тела | `Config/Character.luau`, `shared/CharacterLook.luau`, `server/Services/CharacterAnimService.luau` |
 
 Настроения карт: Промзона — пасмурно и смог, Спальный район — ясное утро, Порт — закат с фонарями,
 Деревня — тёплый день.
