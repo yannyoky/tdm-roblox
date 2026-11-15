@@ -18,6 +18,32 @@ local mouse = player:GetMouse()
 
 local WeaponController = {}
 
+local function teamOf(char: Model): string?
+	local p = Players:GetPlayerFromCharacter(char)
+	if p then
+		return if p.Team and not p.Neutral then p.Team:GetAttribute("Key") else nil
+	end
+	return char:GetAttribute("TeamKey")
+end
+
+-- Попал ли луч в живого врага: nil — нет, иначе true/false — в голову или нет.
+local function predictHit(hit: RaycastResult, from: Vector3, reach: number): boolean?
+	if (hit.Position - from).Magnitude > reach then
+		return nil
+	end
+	local model = hit.Instance:FindFirstAncestorOfClass("Model")
+	local hum = model and model:FindFirstChildOfClass("Humanoid")
+	if not model or not hum or hum.Health <= 0 or model == player.Character then
+		return nil
+	end
+	local mine = if player.Team and not player.Neutral then player.Team:GetAttribute("Key") else nil
+	local theirs = teamOf(model)
+	if mine ~= nil and theirs == mine then
+		return nil
+	end
+	return hit.Instance.Name == "Head"
+end
+
 local AIM_DISTANCE = 1000
 
 function WeaponController.init()
@@ -82,6 +108,15 @@ function WeaponController.init()
 			Audio.ui(Audio.Config.Melee)
 		elseif def.Kind ~= "Grenade" then
 			Audio.shotLocal(id)
+		end
+		-- Звук попадания тоже сразу, если луч попал во врага в пределах дальности оружия
+		-- (сервер всё равно сам решает, был ли урон).
+		if hit and def.Kind ~= "Grenade" then
+			local reach = if def.Melee then (def.Range or 8) + 4 else (def.Range or AIM_DISTANCE)
+			local isHead = predictHit(hit, head.Position, reach)
+			if isHead ~= nil then
+				Audio.hit(isHead, true)
+			end
 		end
 		Viewmodel.onFire()
 	end

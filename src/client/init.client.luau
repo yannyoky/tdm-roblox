@@ -22,6 +22,8 @@ local WeaponPose = require(script:WaitForChild("WeaponPose"))
 
 -- Настройки и система окон нужны остальным модулям, поэтому запускаются первыми.
 PlayerSettings.init()
+-- Звуки загружаются заранее, чтобы первый выстрел и первое попадание не звучали с задержкой.
+require(script:WaitForChild("Audio")).preload()
 Menus.init()
 
 task.spawn(WeaponController.init)

@@ -264,13 +264,17 @@ function Hud.init()
 	end)
 
 	local Audio = require(script.Parent.Audio)
-	Net.get("HitMarker").OnClientEvent:Connect(function(isHead: boolean)
-		Audio.ui(Audio.Config.HitMarker)
+	-- Маркер попадания показывается сразу при выстреле (Audio.hit из WeaponController),
+	-- а подтверждение сервера только дублирует его, если клиент попадание не угадал.
+	Audio.onHit(function(isHead: boolean)
 		hitMarker.TextColor3 = if isHead then Color3.fromRGB(255, 80, 80) else WHITE
 		hitMarker.Visible = true
 		task.delay(0.15, function()
 			hitMarker.Visible = false
 		end)
+	end)
+	Net.get("HitMarker").OnClientEvent:Connect(function(isHead: boolean)
+		Audio.hit(isHead, false)
 	end)
 
 	Net.get("KillFeed").OnClientEvent:Connect(function(killerName: string?, victimName: string, weaponId: string?)
