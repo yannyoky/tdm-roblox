@@ -295,9 +295,9 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 	drive.Name = "Drive"
 	drive.Parent = model
 	local wheelProps = PhysicalProperties.new(1.2, 1.8, 0, 100, 1)
-	-- Ползуны и кулаки должны весить хоть сколько-то (≈1.3): слишком лёгкая деталь между тяжёлым
+	-- Ползуны и кулаки должны весить хоть сколько-то (≈13): слишком лёгкая деталь между тяжёлым
 	-- шасси и жёсткой пружиной разгоняет физику, и машина разлетается при появлении.
-	local tinyProps = PhysicalProperties.new(25, 0.3, 0, 1, 1)
+	local tinyProps = PhysicalProperties.new(60, 0.3, 0, 1, 1)
 	local susp = cfg.Suspension or {}
 	local hz = susp.Hz or 2.5
 	local damping = susp.Damping or 0.55
@@ -321,7 +321,7 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 		local localAxle = chassis.CFrame:ToObjectSpace(axleCf)
 
 		-- Ползун подвески: ходит только вверх-вниз, его держит пружина.
-		local strut = part({ Name = "Strut_" .. name, Size = Vector3.new(0.4, 0.4, 0.4), CFrame = axleCf, CustomPhysicalProperties = tinyProps })
+		local strut = part({ Name = "Strut_" .. name, Size = Vector3.new(0.6, 0.6, 0.6), CFrame = axleCf, CustomPhysicalProperties = tinyProps })
 		strut.Transparency = 1
 		strut.CanCollide = false
 		strut.CanQuery = false
@@ -349,7 +349,7 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 		local hub: BasePart = strut
 		if front then
 			-- Поворотный кулак: вокруг вертикали его крутит сервопривод.
-			local knuckle = part({ Name = "Knuckle_" .. name, Size = Vector3.new(0.4, 0.4, 0.4), CFrame = axleCf, CustomPhysicalProperties = tinyProps })
+			local knuckle = part({ Name = "Knuckle_" .. name, Size = Vector3.new(0.6, 0.6, 0.6), CFrame = axleCf, CustomPhysicalProperties = tinyProps })
 			knuckle.Transparency = 1
 			knuckle.CanCollide = false
 			knuckle.CanQuery = false
@@ -377,6 +377,9 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 			Transparency = 1,
 			CustomPhysicalProperties = wheelProps,
 		})
+		pcall(function()
+			wheel.CollisionGroup = "VehicleWheels" -- группу регистрирует PhysicsSetup
+		end)
 		wheel.Parent = model
 		dressWheel(model, wheel, name, R, WW, side)
 		table.insert(wheels, wheel)

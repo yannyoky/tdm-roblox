@@ -99,6 +99,25 @@ local function parkDrive(model: Model)
 	end
 end
 
+local function setMassless(char: Instance?, on: boolean)
+	if not char then
+		return
+	end
+	for _, part in char:GetDescendants() do
+		if part:IsA("BasePart") then
+			if on then
+				if part:GetAttribute("WasMassless") == nil then
+					part:SetAttribute("WasMassless", part.Massless)
+				end
+				part.Massless = true
+			elseif part:GetAttribute("WasMassless") ~= nil then
+				part.Massless = part:GetAttribute("WasMassless")
+				part:SetAttribute("WasMassless", nil)
+			end
+		end
+	end
+end
+
 local function setOwner(model: Model, player: Player?)
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") and not part.Anchored then
@@ -357,6 +376,14 @@ local function setupVehicle(model: Model, record: PadRecord?)
 			if hum == nil and lastHum then
 				local left = lastHum
 				task.defer(placeAtExit, model, seat, left)
+			end
+			-- Сидящий ничего не весит: тело бойца становится частью машины, и его масса высоко
+			-- над осями раскачивала подвеску.
+			if lastHum and lastHum ~= hum then
+				setMassless(lastHum.Parent, false)
+			end
+			if hum then
+				setMassless(hum.Parent, true)
 			end
 			lastHum = hum
 			local player = hum and Players:GetPlayerFromCharacter(hum.Parent)
