@@ -10,11 +10,39 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Weapons = require(Shared.Config.Weapons)
 local Net = require(Shared.Net)
 local PlayerSettings = require(script.Parent.PlayerSettings)
+local Audio = require(script.Parent.Audio)
+local Viewmodel = require(script.Parent.Viewmodel)
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 
 local WeaponController = {}
+
+local function teamOf(char: Model): string?
+	local p = Players:GetPlayerFromCharacter(char)
+	if p then
+		return if p.Team and not p.Neutral then p.Team:GetAttribute("Key") else nil
+	end
+	return char:GetAttribute("TeamKey")
+end
+
+-- Попал ли луч в живого врага: nil — нет, иначе true/false — в голову или нет.
+local function predictHit(hit: RaycastResult, from: Vector3, reach: number): boolean?
+	if (hit.Position - from).Magnitude > reach then
+		return nil
+	end
+	local model = hit.Instance:FindFirstAncestorOfClass("Model")
+	local hum = model and model:FindFirstChildOfClass("Humanoid")
+	if not model or not hum or hum.Health <= 0 or model == player.Character then
+		return nil
+	end
+	local mine = if player.Team and not player.Neutral then player.Team:GetAttribute("Key") else nil
+	local theirs = teamOf(model)
+	if mine ~= nil and theirs == mine then
+		return nil
+	end
+	return hit.Instance.Name == "Head"
+end
 
 local AIM_DISTANCE = 1000
 
@@ -50,6 +78,7 @@ function WeaponController.init()
 				return
 			end
 			if (tool:GetAttribute("Ammo") or 0) <= 0 then
+				Audio.ui(Audio.Config.Empty)
 				Reload:FireServer(id)
 				return
 			end
@@ -67,6 +96,12 @@ function WeaponController.init()
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Exclude
 		params.FilterDescendantsInstances = { char }
+		-- Сидя в машине, целимся сквозь её кузов.
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		local seatModel = hum and hum.SeatPart and hum.SeatPart.Parent
+		if seatModel and seatModel:IsA("Model") and seatModel:GetAttribute("IsVehicle") then
+			params.FilterDescendantsInstances = { char, seatModel }
+		end
 		local hit = workspace:Raycast(ray.Origin, ray.Direction * AIM_DISTANCE, params)
 		local target = if hit then hit.Position else ray.Origin + ray.Direction * AIM_DISTANCE
 		local dir = target - head.Position
@@ -74,6 +109,22 @@ function WeaponController.init()
 			return
 		end
 		FireWeapon:FireServer(id, head.Position, dir.Unit)
+		-- Свой звук сразу, не дожидаясь сервера (иначе он отстаёт на пинг).
+		if def.Melee then
+			Audio.ui(Audio.Config.Melee)
+		elseif def.Kind ~= "Grenade" then
+			Audio.shotLocal(id)
+		end
+		-- Звук попадания тоже сразу, если луч попал во врага в пределах дальности оружия
+		-- (сервер всё равно сам решает, был ли урон).
+		if hit and def.Kind ~= "Grenade" then
+			local reach = if def.Melee then (def.Range or 8) + 4 else (def.Range or AIM_DISTANCE)
+			local isHead = predictHit(hit, head.Position, reach)
+			if isHead ~= nil then
+				Audio.hit(isHead, true)
+			end
+		end
+		Viewmodel.onFire()
 	end
 
 	local function hookTool(tool: Instance)
@@ -81,6 +132,14 @@ function WeaponController.init()
 			return
 		end
 		hooked[tool] = true
+		-- Звук перезарядки у своего оружия.
+		tool:GetAttributeChangedSignal("Reloading"):Connect(function()
+			local handle = tool:FindFirstChild("Handle")
+			if tool:GetAttribute("Reloading") and handle and handle:IsA("BasePart") then
+				local wid = tool:GetAttribute("WeaponId")
+				Audio.at(Audio.Config.Reloads[wid] or Audio.Config.Reload, handle.Position)
+			end
+		end)
 		tool.Equipped:Connect(function()
 			current = tool
 		end)
@@ -205,9 +264,46 @@ function WeaponController.init()
 		Debris:AddItem(p, lifetime)
 	end
 
-	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, isMelee: boolean, hitSomething: boolean)
+	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, isMelee: boolean, hitSomething: boolean, flash: boolean?, weaponId: string?)
+		-- Свой выстрел: звук уже сыгран при нажатии, от первого лица трассер идёт от дула
+		-- оружия в руках на экране, а вспышку там нарисовал Viewmodel.
+		local myHead = player.Character and player.Character:FindFirstChild("Head") :: BasePart?
+		local mine = myHead ~= nil and current ~= nil and weaponId == current:GetAttribute("WeaponId")
+			and (origin - myHead.Position).Magnitude < 6
 		if isMelee then
+			if flash and not mine then
+				Audio.at(Audio.Config.Melee, origin)
+			end
 			return
+		end
+		if flash and not mine then
+			Audio.shot(weaponId, origin)
+		end
+		local vmMuzzle = Viewmodel.muzzle()
+		local own = mine and vmMuzzle ~= nil
+		if own then
+			origin = vmMuzzle :: Vector3
+		end
+		-- Вспышка у дула (одна на выстрел, даже у дробовика).
+		if flash and not own then
+			local p = Instance.new("Part")
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Material = Enum.Material.Neon
+			p.Color = Color3.fromRGB(255, 200, 90)
+			p.Shape = Enum.PartType.Ball
+			p.Size = Vector3.new(0.45, 0.45, 0.45)
+			p.Position = origin
+			local light = Instance.new("PointLight")
+			light.Color = p.Color
+			light.Range = 10
+			light.Brightness = 3
+			light.Parent = p
+			p.Parent = workspace
+			Debris:AddItem(p, 0.05)
 		end
 		local distance = (endPos - origin).Magnitude
 		if distance >= 0.5 then

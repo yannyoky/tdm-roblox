@@ -55,7 +55,8 @@ local function button(text: string, size: UDim2): TextButton
 		BackgroundColor3 = Color3.fromRGB(45, 45, 55),
 		TextColor3 = WHITE,
 		Font = Enum.Font.GothamBold,
-		TextScaled = true,
+		TextSize = 18,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Text = text,
 		AutoButtonColor = true,
 	}, { corner(6), make("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }) })
@@ -141,10 +142,10 @@ function Hud.init()
 	local hitMarker = label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(0, 34, 0, 34), Text = "×", Visible = false })
 	hitMarker.Parent = gui
 
-	-- Лента убийств (справа сверху).
+	-- Лента убийств (справа, под миникартой).
 	local feed = make("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 12),
+		Position = UDim2.new(1, -12, 0, 212),
 		Size = UDim2.new(0, 320, 0, 150),
 		BackgroundTransparency = 1,
 	}, { make("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 4) }) })
@@ -202,13 +203,14 @@ function Hud.init()
 			captureText.Text = string.format("Захват %d%%", progress)
 		end
 
-		votePanel.Visible = phase == "Lobby"
+		votePanel.Visible = phase == "Lobby" and not Menus.isOpen()
 		for id, b in voteButtons do
 			local name = state:GetAttribute("ModeName_" .. id) or id
 			b.Text = string.format("%s%s (%d)", if myVote == id then "✓ " else "", name, state:GetAttribute("Votes_" .. id) or 0)
 		end
 	end
 	state.AttributeChanged:Connect(refresh)
+	Menus.onChanged(refresh) -- кнопки голосования прячутся, пока открыто окно
 	refresh()
 
 	local function refreshPlayer()
@@ -261,12 +263,18 @@ function Hud.init()
 		end
 	end)
 
-	Net.get("HitMarker").OnClientEvent:Connect(function(isHead: boolean)
+	local Audio = require(script.Parent.Audio)
+	-- Маркер попадания показывается сразу при выстреле (Audio.hit из WeaponController),
+	-- а подтверждение сервера только дублирует его, если клиент попадание не угадал.
+	Audio.onHit(function(isHead: boolean)
 		hitMarker.TextColor3 = if isHead then Color3.fromRGB(255, 80, 80) else WHITE
 		hitMarker.Visible = true
 		task.delay(0.15, function()
 			hitMarker.Visible = false
 		end)
+	end)
+	Net.get("HitMarker").OnClientEvent:Connect(function(isHead: boolean)
+		Audio.hit(isHead, false)
 	end)
 
 	Net.get("KillFeed").OnClientEvent:Connect(function(killerName: string?, victimName: string, weaponId: string?)

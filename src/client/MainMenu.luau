@@ -80,7 +80,7 @@ function MainMenu.init()
 		Parent = column,
 	})
 
-	local playButton = Ui.button("ИГРАТЬ", { LayoutOrder = 7, Size = UDim2.new(1, 0, 0, 56), BackgroundColor3 = C.Good, Parent = column })
+	local playButton = Ui.button("ИГРАТЬ", { LayoutOrder = 7, Size = UDim2.new(1, 0, 0, 56), BackgroundColor3 = C.Good, TextSize = 26, Parent = column })
 
 	local grid = Ui.make("Frame", { LayoutOrder = 8, Size = UDim2.new(1, 0, 0, 128), BackgroundTransparency = 1, Parent = column }, {
 		Ui.make("UIGridLayout", { CellSize = UDim2.new(0.5, -5, 0, 38), CellPadding = UDim2.new(0, 10, 0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),

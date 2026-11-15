@@ -17,6 +17,7 @@ local REMOTES = {
 	"SaveSettings", -- клиент → сервер: настройки ({ [key] = value })
 	"Play", -- клиент → сервер: нажал «Играть» в главном меню (preferredTeam: "Bandits" | "Gov" | "Any")
 	"Crouch", -- клиент → сервер: присесть или встать (on)
+	"AimPitch", -- клиент → сервер: наклон взгляда вверх/вниз в градусах, чтобы другие видели, куда целится
 	"Died", -- сервер → игрок: экран смерти (killerName?, weaponId?, respawnIn?, killerHealth?)
 }
 

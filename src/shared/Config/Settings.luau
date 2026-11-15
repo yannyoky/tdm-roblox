@@ -1,15 +1,15 @@
 -- Настройки игрока. Сохраняются на сервере вместе с прогрессом.
 -- Type: "Number" (ползунок Min..Max с шагом Step) или "Toggle".
 return {
-	Order = { "Sensitivity", "AimSensitivity", "FieldOfView", "ScreenShake", "KeyHints", "RealisticGraphics", "DepthBlur" },
+	Order = { "FirstPerson", "Sensitivity", "AimSensitivity", "FieldOfView", "ScreenShake", "KeyHints", "AimBlur" },
 	List = {
 		Sensitivity = { Type = "Number", Name = "Чувствительность мыши", Min = 0.2, Max = 3, Step = 0.1, Default = 1 },
 		AimSensitivity = { Type = "Number", Name = "Чувствительность в прицеле", Min = 0.2, Max = 1.5, Step = 0.05, Default = 0.6 },
 		FieldOfView = { Type = "Number", Name = "Поле зрения (FOV)", Min = 60, Max = 100, Step = 1, Default = 70 },
+		FirstPerson = { Type = "Toggle", Name = "Вид от первого лица (V)", Default = true },
 		ScreenShake = { Type = "Toggle", Name = "Тряска экрана", Default = true },
 		KeyHints = { Type = "Toggle", Name = "Подсказки клавиш", Default = true },
-		-- Выключенная реалистичная графика = обычный вид Roblox без пост-эффектов (для слабых устройств).
-		RealisticGraphics = { Type = "Toggle", Name = "Реалистичная графика", Default = true },
-		DepthBlur = { Type = "Toggle", Name = "Размытие вдали и в прицеле", Default = true },
+		-- Размытие всего, кроме цели, когда смотришь в прицел.
+		AimBlur = { Type = "Toggle", Name = "Размытие в прицеле", Default = true },
 	},
 }

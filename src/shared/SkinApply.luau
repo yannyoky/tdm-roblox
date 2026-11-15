@@ -154,6 +154,18 @@ function SkinApply.apply(model: Model, skinId: string?)
 	paint(PANTS_PARTS, def.Pants)
 	paint(SHOE_PARTS, def.Shoes or def.Pants)
 
+	-- Готовая одежда из Creator Store (классические Shirt/Pants) поверх цвета.
+	if def.ShirtTemplate then
+		local shirt = Instance.new("Shirt")
+		shirt.ShirtTemplate = "rbxassetid://" .. def.ShirtTemplate
+		shirt.Parent = model
+	end
+	if def.PantsTemplate then
+		local pants = Instance.new("Pants")
+		pants.PantsTemplate = "rbxassetid://" .. def.PantsTemplate
+		pants.Parent = model
+	end
+
 	for _, g in def.Gear do
 		buildGear(model, g.Kind, g.Color, skinColor)
 	end
