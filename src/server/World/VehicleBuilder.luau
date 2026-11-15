@@ -295,7 +295,9 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 	drive.Name = "Drive"
 	drive.Parent = model
 	local wheelProps = PhysicalProperties.new(1.2, 1.8, 0, 100, 1)
-	local tinyProps = PhysicalProperties.new(0.7, 0.3, 0, 1, 1)
+	-- Ползуны и кулаки должны весить хоть сколько-то (≈1.3): слишком лёгкая деталь между тяжёлым
+	-- шасси и жёсткой пружиной разгоняет физику, и машина разлетается при появлении.
+	local tinyProps = PhysicalProperties.new(25, 0.3, 0, 1, 1)
 	local susp = cfg.Suspension or {}
 	local hz = susp.Hz or 2.5
 	local damping = susp.Damping or 0.55
