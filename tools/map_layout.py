@@ -150,6 +150,14 @@ def g_crates(rng, x, z, rot):
     return items, 9
 
 
+def g_shop(rng, x, z, rot):
+    w, d = rng.int(16, 26), rng.int(12, 16)
+    h = rng.int(8, 9)
+    shop = rng.int(1, 16)
+    mat = "Brick" if rng.float() < 0.5 else "Concrete"
+    return [{"k": "block", "x": x, "z": z, "w": w, "d": d, "h": h, "rot": rot, "access": ["S", "ladder"], "shop": shop, "mat": mat}], max(w, d) / 2 + 4
+
+
 def g_shed(rng, x, z, rot):
     return [{"k": "block", "x": x, "z": z, "w": 7, "d": 7, "h": rng.int(5, 7), "rot": rot, "mat": "WoodPlanks"}], 7
 
@@ -183,7 +191,7 @@ def g_dacha(rng, x, z, rot):
 
 FILLERS = {
     "block": g_block, "panel": g_panel, "shell": g_shell, "containers": g_containers,
-    "crates": g_crates, "shed": g_shed, "garages": g_garages, "dacha": g_dacha,
+    "crates": g_crates, "shed": g_shed, "shop": g_shop, "garages": g_garages, "dacha": g_dacha,
 }
 
 
@@ -270,6 +278,7 @@ def layout(map_id, cfg, warn):
             gen = FILLERS[kind]
             seed = rng.int(1, 2 ** 30)
             _, radius = gen(Rng(seed), 0, 0, 0)
+            radius = max(3, radius + f.get("Gap", 5) - 5)
             if street_roads and rng.float() < f.get("StreetShare", 0):
                 road = street_roads[rng.int(1, len(street_roads)) - 1]
                 pts = road["pts"]
@@ -281,7 +290,7 @@ def layout(map_id, cfg, warn):
                 tx, tz = (b[0] - a[0]) / ln, (b[1] - a[1]) / ln
                 side = -1 if rng.float() < 0.5 else 1
                 nx, nz = -tz * side, tx * side
-                dist = road["w"] / 2 + 3 + radius * 0.55 + rng.float() * 5
+                dist = road["w"] / 2 + 3 + radius * 0.55 + rng.float() * f.get("Depth", 5)
                 x, z = px + nx * dist, pz + nz * dist
                 rot = math.degrees(math.atan2(-tz, tx)) + (180 if side < 0 else 0)
             else:

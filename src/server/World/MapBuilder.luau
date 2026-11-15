@@ -18,6 +18,7 @@ local MapsConfig = require(Shared.Config.Maps)
 local VehiclesConfig = require(Shared.Config.Vehicles)
 local DecorConfig = require(Shared.Config.Decor)
 local Detailer = require(script.Parent.Detailer)
+local BaseStyles = require(script.Parent.BaseStyles)
 
 local MapBuilder = {}
 
@@ -373,7 +374,7 @@ local function smooth(pts)
 	return out
 end
 
-local function buildRoad(geo: Instance, pts, w: number, kind: string)
+local function buildRoad(geo: Instance, pts, w: number, kind: string, roadId: number)
 	local style = ROAD_STYLE[kind] or ROAD_STYLE.road
 	local y = if kind == "path" then 0.07 else 0.06
 	local function piece(name: string, size: Vector3, cf: CFrame, shape: Enum.PartType?)
@@ -389,6 +390,7 @@ local function buildRoad(geo: Instance, pts, w: number, kind: string)
 		if shape then
 			p.Shape = shape
 		end
+		p:SetAttribute("RoadId", roadId) -- отделка отличает куски этой дороги от других
 	end
 	for i = 1, #pts - 1 do
 		local a = Vector3.new(pts[i][1], y, pts[i][2])
@@ -517,6 +519,15 @@ function fillers.crates(rng, x: number, z: number, _rot: number)
 	return items, 9
 end
 
+-- Магазин в один этаж: витрина и вывеска на улицу (сторона N), лестница на крышу сзади.
+function fillers.shop(rng, x: number, z: number, rot: number)
+	local w, d = rng:int(16, 26), rng:int(12, 16)
+	local h = rng:int(8, 9)
+	local shop = rng:int(1, 16)
+	local mat = if rng:float() < 0.5 then "Brick" else "Concrete"
+	return { { k = "block", x = x, z = z, w = w, d = d, h = h, rot = rot, access = { "S", "ladder" }, shop = shop, mat = mat } }, math.max(w, d) / 2 + 4
+end
+
 function fillers.shed(rng, x: number, z: number, rot: number)
 	return { { k = "block", x = x, z = z, w = 7, d = 7, h = rng:int(5, 7), rot = rot, mat = "WoodPlanks" } }, 7
 end
@@ -589,9 +600,6 @@ local function buildBase(map: Folder, geo: Instance, teamKey: string, cfg, cente
 	local side = (BASE_W - GATE_W) / 2
 	box(baseGeo, "BaseWall", Vector3.new(side, H, 2), cf * CFrame.new(-BASE_W / 2 + side / 2, H / 2, -BASE_D / 2), wallColor, Enum.Material.Concrete)
 	box(baseGeo, "BaseWall", Vector3.new(side, H, 2), cf * CFrame.new(BASE_W / 2 - side / 2, H / 2, -BASE_D / 2), wallColor, Enum.Material.Concrete)
-	-- Флаг команды.
-	box(baseGeo, "FlagPole", Vector3.new(0.6, 24, 0.6), cf * CFrame.new(0, 12, BASE_D / 2 - 6), Color3.fromRGB(200, 200, 200), Enum.Material.Metal)
-	box(baseGeo, "Flag", Vector3.new(0.2, 5, 8), cf * CFrame.new(0, 21, BASE_D / 2 - 10) * yaw(90), info.Color, Enum.Material.Fabric)
 
 	-- Невидимый объём базы: внутри свои защищены, чужие получают урон.
 	local volume = make("Part", {
@@ -605,8 +613,41 @@ local function buildBase(map: Folder, geo: Instance, teamKey: string, cfg, cente
 	}, map:FindFirstChild("Bases"))
 	volume:SetAttribute("Team", teamKey)
 
-	-- Точки появления в задней половине базы, лицом к воротам.
+	-- Оформление базы (полицейский участок, гетто): здания у задней стены, см. BaseStyles.
+	-- Если стиль есть, точки появления встают перед зданиями, иначе — у задней стены с флагом.
+	local fleet = VehiclesConfig.Fleet[teamKey] or {}
+	local list = {}
+	for _, entry in fleet do
+		for _ = 1, entry.Count do
+			table.insert(list, entry.Type)
+		end
+	end
+	local spacing = math.min(14, (BASE_W - 10) / math.max(1, #list))
+	local padZ = -BASE_D / 2 + 22
+	local padXs = {}
+	for n = 1, #list do
+		padXs[n] = (n - (#list + 1) / 2) * spacing
+	end
+	local styled = BaseStyles.build(DecorConfig.BaseStyle and DecorConfig.BaseStyle[teamKey], {
+		cf = cf,
+		geo = baseGeo,
+		teamColor = info.Color,
+		place = function(e)
+			buildElement(baseGeo, e, Random.new(#teamKey))
+		end,
+		padXs = padXs,
+		padZ = padZ,
+	})
+	if not styled then
+		-- Флаг команды.
+		box(baseGeo, "FlagPole", Vector3.new(0.6, 24, 0.6), cf * CFrame.new(0, 12, BASE_D / 2 - 6), Color3.fromRGB(200, 200, 200), Enum.Material.Metal)
+		box(baseGeo, "Flag", Vector3.new(0.2, 5, 8), cf * CFrame.new(0, 21, BASE_D / 2 - 10) * yaw(90), info.Color, Enum.Material.Fabric)
+	end
+
+	-- Точки появления лицом к воротам: в задней половине базы или перед зданиями стиля.
 	local spawns = folder(map:FindFirstChild("Spawns") :: Instance, teamKey)
+	local firstRow = if styled then BASE_D / 2 - 28 else BASE_D / 2 - 12
+	local rowStep = if styled then 10 else 12
 	local i = 0
 	for row = 0, 1 do
 		for col = -3, 3 do
@@ -614,7 +655,7 @@ local function buildBase(map: Folder, geo: Instance, teamKey: string, cfg, cente
 			make("Part", {
 				Name = "Spawn" .. i,
 				Size = Vector3.new(5, 0.2, 5),
-				CFrame = cf * CFrame.new(col * 12, 0.5, BASE_D / 2 - 12 - row * 12),
+				CFrame = cf * CFrame.new(col * 12, 0.5, firstRow - row * rowStep),
 				Color = info.Color,
 				Material = Enum.Material.Neon,
 				Transparency = 0.7,
@@ -627,20 +668,12 @@ local function buildBase(map: Folder, geo: Instance, teamKey: string, cfg, cente
 
 	-- Площадки машин в передней половине, носом к воротам.
 	local pads = folder(map:FindFirstChild("VehiclePads") :: Instance, teamKey)
-	local fleet = VehiclesConfig.Fleet[teamKey] or {}
-	local list = {}
-	for _, entry in fleet do
-		for _ = 1, entry.Count do
-			table.insert(list, entry.Type)
-		end
-	end
-	local spacing = math.min(14, (BASE_W - 10) / math.max(1, #list))
 	for n, vehicleType in list do
-		local x = (n - (#list + 1) / 2) * spacing
+		local x = padXs[n]
 		local pad = make("Part", {
 			Name = "Pad" .. n,
 			Size = Vector3.new(9, 0.2, 20),
-			CFrame = cf * CFrame.new(x, 0.45, -BASE_D / 2 + 22),
+			CFrame = cf * CFrame.new(x, 0.45, padZ),
 			Color = Color3.fromRGB(230, 200, 60),
 			Material = Enum.Material.SmoothPlastic,
 			Transparency = 0.5,
@@ -744,7 +777,7 @@ function MapBuilder.build(mapId: string): Folder
 		local pts = smooth(road.pts)
 		local kind = road.kind or "road"
 		table.insert(roads, { pts = pts, w = road.w })
-		buildRoad(geo, pts, road.w, kind)
+		buildRoad(geo, pts, road.w, kind, #roads)
 		for i = 1, #pts - 1 do
 			occ:addSegment(pts[i], pts[i + 1], road.w / 2 + 2)
 		end
@@ -820,6 +853,8 @@ function MapBuilder.build(mapId: string): Folder
 			local gen = fillers[kind]
 			local seed = rng:int(1, 2 ^ 30)
 			local _, radius = gen(Rng.new(seed), 0, 0, 0)
+			-- Gap — зазор вокруг дома (по умолчанию 5): меньше — плотнее улицы и уже переулки.
+			radius = math.max(3, radius + (filler.Gap or 5) - 5)
 			local x, z, rot
 			if #roads > 0 and rng:float() < (filler.StreetShare or 0) then
 				local road = roads[rng:int(1, #roads)]
@@ -835,7 +870,8 @@ function MapBuilder.build(mapId: string): Folder
 				local tx, tz = (p2[1] - p1[1]) / len, (p2[2] - p1[2]) / len
 				local side = if rng:float() < 0.5 then -1 else 1
 				local nx, nz = -tz * side, tx * side
-				local dist = road.w / 2 + 3 + radius * 0.55 + rng:float() * 5
+				-- Depth — насколько глубоко от дороги может встать дом (второй ряд, дворы).
+				local dist = road.w / 2 + 3 + radius * 0.55 + rng:float() * (filler.Depth or 5)
 				x, z = px + nx * dist, pz + nz * dist
 				rot = math.deg(math.atan2(-tz, tx)) + (if side < 0 then 180 else 0)
 			else
@@ -858,7 +894,7 @@ function MapBuilder.build(mapId: string): Folder
 	-- Генератор случайных чисел у отделки свой: расстановка построек и схема карты не меняются.
 	if DecorConfig.Detail then
 		map.Parent = workspace
-		for _, step in { "roads", "bases", "lamps", "scatter" } do
+		for _, step in { "roads", "bases", "lamps", "street", "yards", "scatter" } do
 			local ok, err = pcall((Detailer :: any)[step], geo, mapId)
 			if not ok then
 				warn("[MapBuilder] Отделка карты (" .. step .. "):", err)

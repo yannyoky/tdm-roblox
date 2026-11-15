@@ -15,8 +15,11 @@
 --   Zones   -- { Name, x, z, w, d, rot, Props = { элементы } }
 --   Extras  -- элементы в мировых координатах (трамплины и т.п.)
 --   Filler  -- случайная застройка: Seed, Count, Area = {x1, z1, x2, z2}, Kinds,
---              StreetShare = доля домов, которые встают вдоль дорог (остальные вразброс).
---              Виды: block, panel, shell, containers, crates, shed, garages, dacha.
+--              StreetShare = доля домов, которые встают вдоль дорог (остальные вразброс),
+--              Gap = зазор вокруг дома (по умолчанию 5; меньше — плотнее, переулки уже),
+--              Depth = на сколько дом у дороги может отступить от неё (по умолчанию 5; больше — второй ряд).
+--              Виды: block, panel, shell, shop, containers, crates, shed, garages, dacha.
+--              shop — магазин в один этаж с витриной и вывеской на улицу.
 --
 -- Элементы (k = вид):
 --   block      { x, z, w, d, h, rot, access = { "N"|"S"|"E"|"W", "ladder"|"stairs" }, mat, color = {r,g,b} }
