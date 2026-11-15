@@ -6,7 +6,9 @@
 --
 -- Позу считает каждый клиент у себя: поверх анимаций выставляются Transform суставов рук R15
 -- (Motor6D или AnimationConstraint, смотря какой риг у персонажа).
--- Ноги и корпус анимируются как раньше.
+-- Корпус и голова наклоняются вслед за прицелом (часть наклона берёт поясница, часть шея),
+-- при каждом выстреле оружие отдаёт назад и вверх, на бегу оружие несут наискосок у груди.
+-- Ноги анимируются как раньше.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -164,13 +166,59 @@ end
 
 ------------------------------------------------------------------------
 
-type State = { right: Arm?, left: Arm?, weight: number, reload: number, sprint: number, pitch: number }
+-- Доля наклона прицела, которую берут поясница и шея (остальное — руки).
+local WAIST_SHARE = 0.4
+local NECK_SHARE = 0.35
+-- Отдача со стороны: насколько уходит оружие на один выстрел (1 — автомат).
+local KICK = { Rifle = 1, SMG = 0.7, Shotgun = 2, LMG = 1.1, Sniper = 2.2, Pistol = 1.1, Revolver = 1.6 }
+
+-- Наклон сустава поверх анимации. Если анимация в этом кадре сустав не трогала,
+-- Transform остался нашим с прошлого кадра: тогда берём сохранённую позу анимации.
+type Bend = { joint: Joint, base: CFrame, last: CFrame? }
+
+local function bendJoint(b: Bend, extra: CFrame): CFrame
+	local m = b.joint.inst :: any
+	local current: CFrame = m.Transform
+	if b.last == nil or current ~= b.last then
+		b.base = current
+	end
+	local t = b.base * extra
+	m.Transform = t
+	b.last = t
+	return t
+end
+
+type State = {
+	right: Arm?,
+	left: Arm?,
+	weight: number,
+	reload: number,
+	sprint: number,
+	pitch: number,
+	kick: number,
+	waist: Bend?,
+	neck: Bend?,
+}
 local states: { [Model]: State } = setmetatable({}, { __mode = "k" }) :: any
 
 local function getState(char: Model): State
 	local st = states[char]
 	if not st then
-		st = { right = buildArm(char, "Right"), left = buildArm(char, "Left"), weight = 0, reload = 0, sprint = 0, pitch = 0 }
+		local upper = char:FindFirstChild("UpperTorso")
+		local head = char:FindFirstChild("Head")
+		local waist = upper and joint(upper:FindFirstChild("Waist"))
+		local neck = head and joint(head:FindFirstChild("Neck"))
+		st = {
+			right = buildArm(char, "Right"),
+			left = buildArm(char, "Left"),
+			weight = 0,
+			reload = 0,
+			sprint = 0,
+			pitch = 0,
+			kick = 0,
+			waist = if waist then { joint = waist, base = CFrame.identity } else nil,
+			neck = if neck then { joint = neck, base = CFrame.identity } else nil,
+		}
 		states[char] = st
 	end
 	return st
@@ -189,7 +237,16 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 	local tool = char:FindFirstChildOfClass("Tool")
 	local id = tool and tool:GetAttribute("WeaponId")
 	if not tool or type(id) ~= "string" then
-		states[char] = nil
+		-- Убрали оружие: вернуть пояснице и шее позу анимации.
+		local old = states[char]
+		if old then
+			for _, bend in { old.waist, old.neck } do
+				if bend and bend.last and (bend.joint.inst :: any).Transform == bend.last then
+					(bend.joint.inst :: any).Transform = bend.base
+				end
+			end
+			states[char] = nil
+		end
 		return
 	end
 	local st = getState(char)
@@ -208,6 +265,22 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 	st.sprint += ((if speed > 20 and not reloading then 1 else 0) - st.sprint) * math.min(1, dt * 8)
 	local targetPitch = myPitch or (char:GetAttribute("AimPitch") or 0)
 	st.pitch += (targetPitch - st.pitch) * math.min(1, dt * 12)
+	st.kick = math.max(0, st.kick - dt * 9)
+	local pitch = math.clamp(st.pitch, -70, 70)
+
+	-- Поясница и шея берут часть наклона прицела (на бегу и при перезарядке — меньше).
+	-- Положение груди считаем уже с новым наклоном, иначе руки отстанут от корпуса на кадр.
+	local lower = char:FindFirstChild("LowerTorso") :: BasePart?
+	local torsoCf = torso.CFrame
+	local calm = (1 - st.sprint) * (1 - st.reload * 0.5)
+	if st.waist and lower then
+		local wj = st.waist.joint
+		local t = bendJoint(st.waist, ANG(rad(pitch * WAIST_SHARE * calm * st.weight), 0, 0))
+		torsoCf = lower.CFrame * wj.c0 * t * wj.c1:Inverse()
+	end
+	if st.neck then
+		bendJoint(st.neck, ANG(rad(pitch * NECK_SHARE * calm * st.weight), 0, 0))
+	end
 
 	-- Грудь: по повороту корпуса (yaw берём у корня, чтобы не дрожало от анимации ходьбы).
 	local look = root.CFrame.LookVector
@@ -215,33 +288,37 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 	if flat.Magnitude < 1e-3 then
 		return
 	end
-	local chest = torso.Position + torso.CFrame.UpVector * (torso.Size.Y * 0.3)
+	local chest = torsoCf.Position + torsoCf.UpVector * (torso.Size.Y * 0.3)
+	-- На бегу оружие несут наискосок у груди, стволом вниз-влево.
 	local aim = CFrame.lookAt(chest, chest + flat.Unit)
-		* ANG(rad(math.clamp(st.pitch, -70, 70) - 30 * st.sprint - 20 * st.reload), rad(35 * st.sprint), 0)
-	local gun = aim * CF(pose.grip) * pose.rot * ANG(0, 0, rad(40) * st.reload)
+		* ANG(rad(pitch * (1 - st.sprint) - 40 * st.sprint - 20 * st.reload), rad(50 * st.sprint), rad(-25 * st.sprint))
+	local kick = st.kick
+	local gun = aim * CF(pose.grip) * CF(-0.15 * st.sprint, 0.1 * st.sprint, 0.35 * st.sprint)
+		* CF(0, 0.04 * kick, 0.28 * kick) * ANG(rad(7 * kick), 0, 0)
+		* pose.rot * ANG(0, 0, rad(40) * st.reload)
 
 	-- Правая рука: кисть держит рукоятку так же, как держала бы инструмент Roblox.
 	local rightHand = gun * right.gripH:Inverse()
 	local wrist = rightHand * right.wristH
-	local shoulderR = (torso.CFrame * right.shoulder.c0).Position
+	local shoulderR = (torsoCf * right.shoulder.c0).Position
 	local up = aim.UpVector
 	local rightCf = aim.RightVector
 	local uR, lR = solve(right, shoulderR, wrist, rightCf * 0.6 - up, rightCf - up * 0.3)
 	local w = st.weight
-	setJoint(right.shoulder, torso.CFrame, uR, w)
+	setJoint(right.shoulder, torsoCf, uR, w)
 	setJoint(right.elbow, uR, lR, w)
 	setJoint(right.wrist, lR, rightHand, w)
 
 	-- Левая рука на цевье (или у магазина при перезарядке).
 	if left and pose.left then
 		local target = gun * pose.left:Lerp(pose.mag or pose.left, st.reload)
-		local shoulderL = (torso.CFrame * left.shoulder.c0).Position
+		local shoulderL = (torsoCf * left.shoulder.c0).Position
 		-- Кисть — продолжение предплечья; запястье чуть позади точки хвата.
 		local gripOff = (left.gripH.Position - left.wristH).Magnitude
 		local dirToTarget = (target - shoulderL)
 		local wristL = target - (if dirToTarget.Magnitude > 0 then dirToTarget.Unit else aim.LookVector) * gripOff
 		local uL, lL = solve(left, shoulderL, wristL, -rightCf * 0.6 - up, up)
-		setJoint(left.shoulder, torso.CFrame, uL, w)
+		setJoint(left.shoulder, torsoCf, uL, w)
 		setJoint(left.elbow, uL, lL, w)
 		setJoint(left.wrist, lL, lL * left.handOffset, w)
 	end
@@ -259,6 +336,26 @@ function WeaponPose.init()
 		end
 	end
 	workspace.ChildAdded:Connect(track)
+
+	-- Отдача со стороны: выстрел приходит с точкой у дула, ищем стрелка рядом с ней.
+	Net.get("ShotFx").OnClientEvent:Connect(function(origin: Vector3, _endPos, isMelee: boolean, _hit, _flash, weaponId: string?)
+		if isMelee or typeof(origin) ~= "Vector3" then
+			return
+		end
+		local best, bestD = nil, 7
+		for char, st in states do
+			local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if root then
+				local d = (root.Position - origin).Magnitude
+				if d < bestD then
+					best, bestD = st, d
+				end
+			end
+		end
+		if best then
+			best.kick = math.min(1.5, best.kick + (KICK[weaponId or ""] or 1) * 0.6)
+		end
+	end)
 	workspace.ChildRemoved:Connect(function(child)
 		bots[child :: Model] = nil
 	end)
