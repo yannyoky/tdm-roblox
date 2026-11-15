@@ -262,6 +262,25 @@ local function setupRam(model: Model)
 	end
 end
 
+-- Выходящий полсекунды не задевает кузов, чтобы тот не вытолкнул и не уронил его.
+local function passThroughHull(char: Instance?)
+	if not char then
+		return
+	end
+	for _, part in char:GetDescendants() do
+		if part:IsA("BasePart") and part.CollisionGroup == "Characters" then
+			part.CollisionGroup = "CharactersExiting"
+		end
+	end
+	task.delay(0.6, function()
+		for _, part in char:GetDescendants() do
+			if part:IsA("BasePart") and part.CollisionGroup == "CharactersExiting" then
+				part.CollisionGroup = "Characters"
+			end
+		end
+	end)
+end
+
 -- Ставит вышедшего у двери его места. Если там стена — с другой стороны, иначе как есть.
 local exitParams = RaycastParams.new()
 exitParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -375,6 +394,7 @@ local function setupVehicle(model: Model, record: PadRecord?)
 			local hum = seat.Occupant
 			if hum == nil and lastHum then
 				local left = lastHum
+				passThroughHull(left.Parent)
 				task.defer(placeAtExit, model, seat, left)
 			end
 			-- Сидящий ничего не весит: тело бойца становится частью машины, и его масса высоко

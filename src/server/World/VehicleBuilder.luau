@@ -170,6 +170,9 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 			CanQuery = not box.glass, -- через стёкла пули летят к сидящим внутри
 			CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.35, 0.1, 1, 1),
 		})
+		pcall(function()
+			hull.CollisionGroup = "VehicleHull" -- группу регистрирует PhysicsSetup
+		end)
 		hull.Parent = model
 		weld(chassis, hull)
 	end
@@ -268,6 +271,7 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 		seat.CFrame = at(s.pos.X, s.pos.Y - 0.2, s.pos.Z) -- pos.Y — верх подушки
 		seat.Transparency = 1
 		seat.CanCollide = false
+		seat.CanTouch = false -- садятся только через двери, а не случайным касанием
 		seat.Massless = true
 		seat.Parent = model
 		weld(chassis, seat)
