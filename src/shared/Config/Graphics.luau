@@ -1,7 +1,7 @@
 -- Реалистичная графика (ветка graphics). В обычной ветке этого файла нет.
 --
 -- Что где:
---   default.project.json        -- Lighting.Technology = Future (из скрипта его поменять нельзя, только так или в Studio)
+--   default.project.json        -- Lighting.LightingStyle = Realistic (бывший Technology = Future; из скрипта не меняется)
 --   src/client/Graphics.luau    -- освещение, атмосфера, пост-эффекты, туман, облака; у каждого игрока свой переключатель
 --   src/server/World/Realism.luau -- земля из Terrain с травой, фонари, свет в зданиях, фары машин
 --

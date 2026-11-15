@@ -25,11 +25,12 @@
     "Lighting": {
       "$className": "Lighting",
       "$properties": {
-        "Technology": "Future",
         "GlobalShadows": true,
         "EnvironmentDiffuseScale": 1,
         "EnvironmentSpecularScale": 1,
-        "ShadowSoftness": 0.15
+        "ShadowSoftness": 0.15,
+        "LightingStyle": "Realistic",
+        "PrioritizeLightingQuality": true
       }
     },
     "MaterialService": {

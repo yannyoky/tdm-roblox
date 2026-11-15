@@ -1,6 +1,6 @@
 # Реалистичная графика (ветка graphics)
 
-В этой ветке игра выглядит «реалистично»: свет Future, дымка, пост-эффекты, земля из Terrain с травой,
+В этой ветке игра выглядит «реалистично»: свет Realistic (бывший Future), дымка, пост-эффекты, земля из Terrain с травой,
 фонари, свет в зданиях, настоящие фары. В `main` остаётся обычный вид Roblox.
 
 ## Как вести две ветки
@@ -14,7 +14,7 @@
 
 | Что | Где |
 | --- | --- |
-| `Lighting.Technology = Future`, мягкие тени, отражения окружения | `default.project.json` (из скрипта Technology менять нельзя) |
+| `Lighting.LightingStyle = Realistic` (бывший Technology = Future), мягкие тени, отражения окружения | `default.project.json` (из скрипта это свойство не меняется) |
 | Настроение по карте: время суток, дымка Atmosphere, облака, Bloom, ColorCorrection, SunRays | `src/shared/Config/Graphics.luau` → `Moods` |
 | Глубина резкости: лёгкое размытие вдали, в прицеле фокус на цели и размытие своего оружия | `src/client/Graphics.luau`, `Config/Graphics.luau` → `DepthOfField` |
 | Земля из Terrain (трава шевелится), под дорогами и зданиями земля и асфальт, чтобы трава не торчала | `src/server/World/Realism.luau` |
@@ -32,7 +32,7 @@
 
 ## Что нужно сделать в Studio один раз
 
-1. Lighting → проверьте, что **Technology = Future** (Rojo ставит сам, но если подключались к старому месту, поставьте руками).
+1. Lighting → проверьте, что **LightingStyle = Realistic** (в новых версиях Studio так называется прежний Technology = Future; Rojo ставит сам).
 2. Workspace → Terrain → **Decoration = вкл.** (травинки; скрипт пытается включить, но это свойство может быть закрыто для скриптов).
 3. Уберите из Lighting старые Sky/Atmosphere/Bloom, если они есть в месте, чтобы не накладывались.
 4. Game Settings → Rendering: ничего менять не нужно, но тестируйте на «Graphics Quality = 10» и на низком качестве.
