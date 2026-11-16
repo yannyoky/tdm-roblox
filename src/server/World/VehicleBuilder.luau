@@ -236,7 +236,9 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 	-- (src/client/VehicleLights.luau): фары ночью и в ливень, стопы при торможении, белые при заднем ходе.
 	if geo.lights then
 		local L = geo.lights
-		local rearZ = geo.size.Z / 2 + 0.02
+		-- Стёкла фонарей — толстые плашки, утопленные в кузов: снаружи видна только лицевая часть,
+		-- и на скруглённых углах кузова они не висят в воздухе.
+		local rearZ = geo.size.Z / 2 - 0.05
 		for _, x in { -L.x, L.x } do
 			local holder = part({ Name = "Headlight", Size = Vector3.new(0.2, 0.2, 0.2), CFrame = at(x, L.h, L.z) })
 			ghost(holder)
@@ -252,15 +254,17 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 			holder.Parent = model
 			weld(chassis, holder)
 			-- Стекло фары: светится, когда фары включены.
-			local glow = part({ Name = "HeadlightGlow", Size = Vector3.new(1.1, 0.45, 0.06), CFrame = at(x, L.h, L.z - 0.04), Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.Neon })
+			local glow = part({ Name = "HeadlightGlow", Size = Vector3.new(0.8, 0.32, 0.7), CFrame = at(x * 0.9, L.h, L.z + 0.3), Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.Neon })
 			ghost(glow)
 			glow.Transparency = 1
+			glow.CastShadow = false
 			glow.Parent = model
 			weld(chassis, glow)
 			-- Задний фонарь (габарит + стоп) и фонарь заднего хода.
-			local tail = part({ Name = "TailLight", Size = Vector3.new(1.1, 0.42, 0.06), CFrame = at(x, L.h + 0.35, rearZ), Color = Color3.fromRGB(255, 30, 25), Material = Enum.Material.Neon })
+			local tail = part({ Name = "TailLight", Size = Vector3.new(0.8, 0.3, 0.7), CFrame = at(x * 0.9, L.h + 0.35, rearZ - 0.4), Color = Color3.fromRGB(255, 30, 25), Material = Enum.Material.Neon })
 			ghost(tail)
 			tail.Transparency = 1
+			tail.CastShadow = false
 			local red = Instance.new("PointLight")
 			red.Color = Color3.fromRGB(255, 40, 30)
 			red.Range = 10
@@ -269,9 +273,10 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 			red.Parent = tail
 			tail.Parent = model
 			weld(chassis, tail)
-			local rev = part({ Name = "ReverseLight", Size = Vector3.new(0.45, 0.3, 0.06), CFrame = at(x - math.sign(x) * 0.9, L.h + 0.35, rearZ), Color = Color3.fromRGB(255, 255, 250), Material = Enum.Material.Neon })
+			local rev = part({ Name = "ReverseLight", Size = Vector3.new(0.35, 0.26, 0.7), CFrame = at(x * 0.9 - math.sign(x) * 0.65, L.h + 0.35, rearZ - 0.4), Color = Color3.fromRGB(255, 255, 250), Material = Enum.Material.Neon })
 			ghost(rev)
 			rev.Transparency = 1
+			rev.CastShadow = false
 			local white = Instance.new("SpotLight")
 			white.Face = Enum.NormalId.Back
 			white.Range = 16

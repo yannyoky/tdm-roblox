@@ -43,6 +43,7 @@ type State = {
 	seatAt: number,
 	trans: CFrame?, -- откуда «переезжает» тело при посадке/выходе (в системе HumanoidRootPart)
 	transT: number,
+	transCf: CFrame?, -- добавка этого кадра (её повторяем после физики, см. Heartbeat)
 }
 
 local states: { [Model]: State } = {}
@@ -108,6 +109,7 @@ local function build(char: Model): State?
 		seatAt = -10,
 		trans = nil,
 		transT = 0,
+		transCf = nil,
 	}
 end
 
@@ -136,6 +138,7 @@ end
 local function update(char: Model, st: State, dt: number, camPos: Vector3)
 	local hum, root = st.hum, st.root
 	if not root.Parent or hum.Health <= 0 then
+		st.transCf = nil
 		return
 	end
 	-- Посадка в машину и выход: сервер переносит персонажа рывком (на сиденье или к двери).
@@ -223,9 +226,10 @@ local function update(char: Model, st: State, dt: number, camPos: Vector3)
 	local far = (root.Position - camPos).Magnitude > Config.MaxDistance
 	local firstPerson = char == player.Character and head ~= nil and (head.Position - camPos).Magnitude < 1.6
 	local tiny = math.abs(st.pitch) < 0.002 and math.abs(st.roll) < 0.002 and math.abs(st.landX) < 0.005
-	if transCf and not far and not firstPerson then
+	st.transCf = if transCf and not far and not firstPerson then transCf else nil
+	if st.transCf then
 		st.active = true
-		bend(st.joints.Root, CFrame.identity, transCf)
+		bend(st.joints.Root, CFrame.identity, st.transCf)
 		return
 	end
 	if far or firstPerson or busy or tiny then
@@ -310,6 +314,18 @@ function Locomotion.init()
 		for char in states do
 			if not char.Parent then
 				states[char] = nil
+			end
+		end
+	end)
+	-- Сидящий персонаж — часть сборки машины, и через кадр поза таза приходит заново
+	-- уже после Stepped: без повтора тело на кадр «прыгает» на сиденье. Повторяем добавку после физики.
+	RunService.Heartbeat:Connect(function()
+		for char, st in states do
+			if st.transCf and char.Parent then
+				local b = st.joints.Root
+				if b.inst.Transform ~= b.last then
+					bend(b, CFrame.identity, st.transCf)
+				end
 			end
 		end
 	end)
