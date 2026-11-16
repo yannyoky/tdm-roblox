@@ -42,8 +42,8 @@ Character.Locomotion = {
 	-- Приземление: от скорости падения LandMinSpeed (лёгкий прыжок) до LandMaxSpeed (с крыши).
 	LandMinSpeed = 30,
 	LandMaxSpeed = 90,
-	LandKick = 14, -- сила просадки
-	LandMaxDrop = 1.1, -- максимум, на сколько опускается таз
+	LandKick = 34, -- сила просадки (пик ≈ LandKick / √LandStiffness × 0.5)
+	LandMaxDrop = 1.0, -- максимум, на сколько опускается таз
 	LandStiffness = 200, -- жёсткость пружины выпрямления
 	LandDamping = 0.6, -- 1 — без отскока, меньше — с лёгким пружинящим отскоком
 }
