@@ -87,6 +87,19 @@ function MapService.load(mapId: string): Folder
 	return load(mapId)
 end
 
+-- Карта для режима со своей картой: если она уже собрана и ещё не сыграна — берём её.
+function MapService.use(mapId: string): Folder
+	if current and not handmade and current:GetAttribute("MapId") == mapId and fresh then
+		fresh = false
+		return current
+	end
+	if handmade then
+		return MapService.get()
+	end
+	fresh = false
+	return MapService.load(mapId)
+end
+
 -- Папка точек появления для команды в зависимости от режима:
 -- режим с SpawnAtBase (капт) — база, иначе передовая точка, если она есть.
 function MapService.spawnFolder(teamKey: string, modeDef): string

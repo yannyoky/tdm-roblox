@@ -278,7 +278,7 @@ end
 
 -- Боты добивают каждую команду до BotsConfig.TeamSize и уходят, когда приходят игроки.
 local function rebalanceBots()
-	if phase ~= "Match" or not BotsConfig.Enabled or not mode then
+	if phase ~= "Match" or not BotsConfig.Enabled or not mode or mode.def.Bots == false then
 		return
 	end
 	for _, key in TEAM_KEYS do
@@ -586,9 +586,11 @@ local function runMatch(modeId: string)
 	setState("ModeName", def.DisplayName)
 	setState("TimeLeft", def.Duration or 0)
 
-	-- Ротация карт: каждый матч на следующей карте.
-	map = MapService.nextMap()
+	-- Ротация карт: каждый матч на следующей карте. Режим со своей картой (def.Map) идёт на ней.
+	map = if def.Map then MapService.use(def.Map) else MapService.nextMap()
 	api.map = map
+	-- Прохожие и трафик (NPC) только в режимах с CityLife (свободная прогулка по городу).
+	ReplicatedStorage:SetAttribute("CityLife", def.CityLife == true)
 
 	mode = ModeClass.new(api, def)
 	rebalanceBots()
@@ -618,6 +620,7 @@ local function runMatch(modeId: string)
 	end
 
 	phase = "Results"
+	ReplicatedStorage:SetAttribute("CityLife", false)
 	setState("Phase", "Results")
 	setState("Winner", winner)
 	setState("Message", if winner == "Draw" then "Ничья!" else string.format("Победа: %s!", api.teamName(winner)))
