@@ -1,21 +1,23 @@
 -- Кастомизация персонажа (меню «Персонаж», клавиша U).
 --
--- Внешность (Look) общая для обеих сторон: кожа, телосложение, голова/лицо, причёска, борода, очки.
+-- Тело одно из двух реалистичных: мужское или женское (UGC-тела с каталога Roblox).
+-- Аватар игрока Roblox не используется: все персонажи собираются с нуля из этих тел.
+-- Внешность (Look) общая для обеих сторон: тело, цвет кожи, лицо, причёска, борода, очки.
+-- Лицо, причёска и борода зависят от тела: в списке только подходящие (Gender = "M"/"F",
+-- без Gender — подходит обоим).
 -- Одежда (Outfit) своя у каждой стороны: верх, низ, обувь, головной убор. Вещи — 3D-одежда
--- (layered clothing) из каталога Roblox. Скины (Config/Skins) — готовые комплекты из этих вещей.
+-- (layered clothing), она садится на любое из двух тел. Скины (Config/Skins) — готовые комплекты.
 --
 -- «uniform» в одежде — «как в скине»: вещь берётся из комплекта выбранного скина.
--- «avatar» во внешности — взять то, что у игрока в аватаре Roblox.
 --
 -- Asset — id ассета каталога. Чтобы добавить вещь, допишите строку в нужный список.
 -- Слои одежды: Type = TShirt | Shirt | Sweater | Jacket | Pants | Shorts | LeftShoe | RightShoe.
 -- Головной убор: Hat = id шляпы (тип 8) или Face = id маски в слоте лица (тип 42).
 local Appearance = {}
 
-Appearance.AVATAR = "avatar"
 Appearance.UNIFORM = "uniform"
 
--- Тона кожи. 0 — как в аватаре.
+-- Тона кожи.
 Appearance.Tones = {
 	Color3.fromRGB(255, 219, 190),
 	Color3.fromRGB(241, 194, 158),
@@ -27,66 +29,53 @@ Appearance.Tones = {
 	Color3.fromRGB(72, 46, 32),
 }
 
--- Слоты внешности в порядке меню.
+-- Слоты внешности в порядке меню (тело выбирается отдельными кнопками).
 Appearance.LookSlots = {
-	{ Key = "Body", Name = "Телосложение" },
-	{ Key = "Head", Name = "Голова и лицо" },
+	{ Key = "Head", Name = "Лицо" },
 	{ Key = "Hair", Name = "Причёска" },
-	{ Key = "Beard", Name = "Борода" },
+	{ Key = "Beard", Name = "Борода", Gender = "M" },
 	{ Key = "Glasses", Name = "Очки" },
 }
 
--- Gender = "M"/"F" нужен только ботам, чтобы не собирать голову одного пола на тело другого.
--- Игроки могут сочетать что угодно.
--- Все id проверены через economy.roblox.com (тип ассета совпадает). Вещи Roblox или реалистичные UGC.
+-- Все id проверены через catalog.roblox.com. Только реалистичные вещи: старые «кубические»
+-- головы, причёски и тела Roblox убраны.
 Appearance.Options = {
-	-- Меши частей тела (Torso, RightArm, LeftArm, LeftLeg, RightLeg).
+	-- Два тела. Parts — меши частей тела из бандла, Head — лицо по умолчанию для этого тела.
 	Body = {
-		{ Id = "avatar", Name = "Как в аватаре" },
-		{ Id = "man", Gender = "M", Name = "Мужское", Parts = { Torso = 86500008, RightArm = 86500036, LeftArm = 86500054, LeftLeg = 86500064, RightLeg = 86500078 } },
-		{ Id = "xbox_m", Gender = "M", Name = "Мужское, крепкое", Parts = { Torso = 301826032, RightArm = 301825492, LeftArm = 301824684, LeftLeg = 301825699, RightLeg = 301825891 } },
-		{ Id = "real_m", Gender = "M", Name = "Мужское, реалистичное", Parts = { Torso = 79418338717280, RightArm = 121594678924210, LeftArm = 77458402169586, LeftLeg = 84512788424940, RightLeg = 113243143782428 } },
-		{ Id = "woman", Gender = "F", Name = "Женское", Parts = { Torso = 86499666, RightArm = 86499698, LeftArm = 86499716, LeftLeg = 86499753, RightLeg = 86499793 } },
-		{ Id = "xbox_f", Gender = "F", Name = "Женское, спортивное", Parts = { Torso = 301824116, RightArm = 301822975, LeftArm = 301822804, LeftLeg = 301823492, RightLeg = 301823806 } },
-		{ Id = "city_f", Gender = "F", Name = "Женское, городское", Parts = { Torso = 2492674027, RightArm = 2492669375, LeftArm = 2492667589, LeftLeg = 2492671662, RightLeg = 2492670347 } },
+		{
+			-- «Realistic Male Body» (Ryzie), бандл 52179038679057.
+			Id = "male",
+			Gender = "M",
+			Name = "Мужское",
+			Head = "m_latino",
+			Parts = { Torso = 79418338717280, RightArm = 121594678924210, LeftArm = 77458402169586, LeftLeg = 84512788424940, RightLeg = 113243143782428 },
+		},
+		{
+			-- «Realistic Woman Model Body (Re-Colorable)» (Lilisyas), бандл 173451028496931.
+			Id = "female",
+			Gender = "F",
+			Name = "Женское",
+			Head = "f_freckled",
+			Parts = { Torso = 116815625686744, RightArm = 78600606254039, LeftArm = 120485520963285, LeftLeg = 112873404240220, RightLeg = 122474588382372 },
+		},
 	},
-	-- Динамические головы (лицо с мимикой).
+	-- Динамические головы (лицо с мимикой). Только головы человеческой формы: «кубические»
+	-- головы с нарисованным лицом убраны. Проверено в Studio на обоих телах.
 	Head = {
-		{ Id = "avatar", Name = "Как в аватаре" },
-		{ Id = "man", Gender = "M", Name = "Мужчина", Asset = 10725826963 },
-		{ Id = "classic_m", Gender = "M", Name = "Мужчина, классика", Asset = 11180212350 },
-		{ Id = "beard", Gender = "M", Name = "Бородач", Asset = 97709344552035 },
-		{ Id = "beard_blond", Gender = "M", Name = "Светлый бородач", Asset = 87840847758855 },
-		{ Id = "scar", Gender = "M", Name = "Шрам", Asset = 74295716469720 },
-		{ Id = "sly", Gender = "M", Name = "Хитрый", Asset = 75853796532602 },
-		{ Id = "real_m", Gender = "M", Name = "Реалистичный", Asset = 136087963795680 },
-		{ Id = "stare", Gender = "M", Name = "Тяжёлый взгляд", Asset = 75162147518322 },
-		{ Id = "serious", Gender = "M", Name = "Серьёзный", Asset = 84057525262855 },
-		{ Id = "woman", Gender = "F", Name = "Женщина", Asset = 10725626210 },
-		{ Id = "classic_f", Gender = "F", Name = "Женщина, классика", Asset = 11159990982 },
-		{ Id = "city_f", Gender = "F", Name = "Горожанка", Asset = 15093243863 },
-		{ Id = "real_f", Gender = "F", Name = "Женщина, реалистичная", Asset = 84811141036354 },
-		{ Id = "cheeky_f", Gender = "F", Name = "Женщина, дерзкая", Asset = 138825541299076 },
+		{ Id = "m_latino", Gender = "M", Name = "Мужчина 1", Asset = 112433260004346 },
+		{ Id = "m_zeslin", Gender = "M", Name = "Мужчина 2", Asset = 124854450528412 },
+		{ Id = "f_freckled", Gender = "F", Name = "Женщина 1", Asset = 93831161835736 },
+		{ Id = "f_honey", Gender = "F", Name = "Женщина 2", Asset = 97738333936586 },
+		{ Id = "f_porcelain", Gender = "F", Name = "Женщина 3", Asset = 88043782935086 },
 	},
 	Hair = {
-		{ Id = "avatar", Name = "Как в аватаре" },
 		{ Id = "none", Name = "Бритая голова" },
 		{ Id = "buzz", Name = "Под машинку", Asset = 10418543489 },
 		{ Id = "buzz2", Name = "Ёжик", Asset = 118122971099393 },
-		{ Id = "short_brown", Name = "Короткие русые", Asset = 62234425 },
-		{ Id = "short_black", Name = "Короткие чёрные", Asset = 13655562 },
-		{ Id = "classic", Name = "Классическая", Asset = 13477818 },
-		{ Id = "slick", Name = "Зачёс назад", Asset = 29781229 },
-		{ Id = "curly_fade", Name = "Кудри с фейдом", Asset = 7193405096 },
+		{ Id = "curly_fade", Gender = "M", Name = "Кудри с фейдом", Asset = 7193405096 },
 		{ Id = "afro", Name = "Афро", Asset = 7193450455 },
-		{ Id = "dreads", Name = "Дреды", Asset = 26778066 },
 		{ Id = "braids", Name = "Косички, чёрные", Asset = 7193454569 },
-		{ Id = "braids_brown", Name = "Косички, каштановые", Asset = 9244150641 },
-		{ Id = "man_bun", Name = "Пучок", Asset = 343584973 },
-		{ Id = "messy_bun", Gender = "F", Name = "Небрежный пучок", Asset = 80922251 },
-		{ Id = "chestnut_bun", Gender = "F", Name = "Каштановый пучок", Asset = 62724852 },
-		{ Id = "ponytail", Gender = "F", Name = "Хвост", Asset = 376527350 },
-		{ Id = "long", Gender = "F", Name = "Длинные", Asset = 12519986 },
+		{ Id = "braids_brown", Gender = "F", Name = "Косички, каштановые", Asset = 9244150641 },
 		{ Id = "wavy", Gender = "F", Name = "Волнистые, пробор", Asset = 9244111257 },
 		{ Id = "auburn", Gender = "F", Name = "Прямые рыжие", Asset = 3814481268 },
 	},
@@ -100,22 +89,18 @@ Appearance.Options = {
 		{ Id = "full_black", Name = "Густая чёрная", Asset = 122529465337911 },
 		{ Id = "full_brown", Name = "Густая русая", Asset = 14078903680 },
 		{ Id = "beard", Name = "Борода", Asset = 96842327519524 },
-		{ Id = "andrew", Name = "Аккуратная", Asset = 158066137 },
-		{ Id = "blond", Name = "Светлая", Asset = 323418594 },
 	},
 	Glasses = {
 		{ Id = "none", Name = "Без очков" },
-		{ Id = "aviators", Name = "Авиаторы", Asset = 376526673 },
-		{ Id = "aviators_silver", Name = "Авиаторы, серебро", Asset = 134823161 },
-		{ Id = "sleek", Name = "Узкие тёмные", Asset = 51245241 },
 		{ Id = "black", Name = "Чёрные очки", Asset = 16855968427 },
 		{ Id = "ballistic", Name = "Баллистические", Asset = 124790757893843 },
 		{ Id = "ballistic2", Name = "Тактические", Asset = 17814942071 },
-		{ Id = "thick", Name = "Толстая оправа", Asset = 62690529 },
-		{ Id = "horn", Name = "Роговая оправа", Asset = 22151904 },
-		{ Id = "john", Name = "Простые", Asset = 12520031 },
+		{ Id = "aviators", Name = "Авиаторы", Asset = 376526673 },
 	},
 }
+
+-- Одежда в лобби (ещё нет стороны): простые вещи из гардероба Банды.
+Appearance.LobbyOutfit = { Faction = "Bandits", Top = "tee_gray", Bottom = "jeans", Shoes = "sneakers_white" }
 
 -- Слоты одежды в порядке меню.
 Appearance.ClothingSlots = {
@@ -218,13 +203,44 @@ Appearance.Clothing = {
 }
 
 Appearance.DefaultLook = {
-	Tone = 0,
-	Body = "avatar",
-	Head = "avatar",
-	Hair = "avatar",
+	Tone = 3,
+	Body = "male",
+	Head = "m_latino",
+	Hair = "buzz",
 	Beard = "none",
 	Glasses = "none",
 }
+
+-- Что ставить по умолчанию для каждого тела, если выбранное к нему не подходит.
+Appearance.GenderDefaults = {
+	M = { Head = "m_latino", Hair = "buzz", Beard = "none" },
+	F = { Head = "f_freckled", Hair = "wavy", Beard = "none" },
+}
+
+-- Подходит ли вариант к телу этого пола.
+function Appearance.fits(opt: any, gender: string): boolean
+	return opt ~= nil and (opt.Gender == nil or opt.Gender == gender)
+end
+
+-- Варианты слота для тела этого пола (для меню и ботов).
+function Appearance.optionsFor(slot: string, gender: string): { any }
+	local list = {}
+	for _, opt in Appearance.Options[slot] or {} do
+		if Appearance.fits(opt, gender) then
+			table.insert(list, opt)
+		end
+	end
+	return list
+end
+
+function Appearance.genderOf(bodyId: string?): string
+	for _, opt in Appearance.Options.Body do
+		if opt.Id == bodyId then
+			return opt.Gender
+		end
+	end
+	return "M"
+end
 
 function Appearance.findIn(list: { any }?, id: string?): any
 	if not list or not id then
