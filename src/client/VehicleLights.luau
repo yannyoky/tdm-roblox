@@ -4,6 +4,7 @@
 --   * Стоп-сигналы: у своей машины — по педали тормоза; у чужих — по замедлению (скорость машины
 --     приходит по сети, так что торможение видно всем без лишних сообщений).
 --   * Белые фонари — при движении назад.
+--   * Машины трафика (AIDriver): фары ночью всегда, стопы при торможении и на месте.
 -- Детали фонарей добавляет World/VehicleBuilder.luau (Headlight, HeadlightGlow, TailLight, ReverseLight).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -72,14 +73,15 @@ local function update(l: Lamps, dt: number, camPos: Vector3, night: boolean)
 	local model = l.model
 	local root = model.PrimaryPart
 	local seat = model:FindFirstChild("DriverSeat") :: VehicleSeat?
-	if not root or not seat or model:GetAttribute("Destroyed") then
+	local ai = model:GetAttribute("AIDriver") == true -- машина городского трафика (World/Traffic)
+	if not root or (not seat and not ai) or model:GetAttribute("Destroyed") then
 		apply(l, false, false, false)
 		return
 	end
 	if (root.Position - camPos).Magnitude > MAX_DISTANCE then
 		return
 	end
-	local driver = seat.Occupant
+	local driver: Humanoid? = if seat then seat.Occupant else nil
 	local forward = root.AssemblyLinearVelocity:Dot(root.CFrame.LookVector)
 	local a = (forward - l.prevSpeed) / dt
 	l.prevSpeed = forward
@@ -88,7 +90,10 @@ local function update(l: Lamps, dt: number, camPos: Vector3, night: boolean)
 	l.decel += (slowing - l.decel) * math.min(1, dt * 10)
 
 	local brake, reverse = false, false
-	if driver then
+	if ai then
+		brake = l.decel > 6 and math.abs(forward) > 0.5 or math.abs(forward) < 0.5
+		reverse = false
+	elseif driver then
 		if driver.Parent == player.Character then
 			-- Своя машина: тормоз — педаль против хода или ручник (Shift).
 			local throttle = seat.ThrottleFloat
@@ -99,12 +104,12 @@ local function update(l: Lamps, dt: number, camPos: Vector3, night: boolean)
 			reverse = forward < -1.5
 		end
 	end
-	apply(l, night and driver ~= nil, brake, reverse and not brake)
+	apply(l, night and (driver ~= nil or ai), brake, reverse and not brake)
 end
 
 function VehicleLights.init()
 	local function add(model: Instance)
-		if model:IsA("Model") and model:GetAttribute("IsVehicle") and not cars[model] then
+		if model:IsA("Model") and (model:GetAttribute("IsVehicle") or model:GetAttribute("IsTraffic")) and not cars[model] then
 			cars[model] = collect(model)
 		end
 	end
@@ -120,12 +125,15 @@ function VehicleLights.init()
 			add(child)
 		end
 	end
-	local folder = workspace:FindFirstChild("Vehicles")
-	if folder then
-		watchFolder(folder)
+	-- Машины игроков и городской трафик (только в режиме «Город»).
+	for _, name in { "Vehicles", "Traffic" } do
+		local folder = workspace:FindFirstChild(name)
+		if folder then
+			watchFolder(folder)
+		end
 	end
 	workspace.ChildAdded:Connect(function(child)
-		if child.Name == "Vehicles" and child:IsA("Folder") then
+		if (child.Name == "Vehicles" or child.Name == "Traffic") and child:IsA("Folder") then
 			watchFolder(child)
 		end
 	end)

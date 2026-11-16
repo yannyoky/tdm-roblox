@@ -65,6 +65,8 @@ type Car = {
 	s: number,
 	v: number,
 	obstacle: number, -- расстояние от бампера до препятствия
+	blocker: Car?, -- машина трафика впереди (если препятствие — она)
+	queued: boolean, -- стоит в очереди у светофора (такую машину не объезжают)
 	aiAcc: number,
 	stuck: number,
 	waitedBehind: number,
@@ -72,6 +74,7 @@ type Car = {
 }
 
 local cars: { Car } = {}
+local byModel: { [Model]: Car } = {}
 local folder: Folder? = nil
 local running = false
 local overlap = OverlapParams.new()
@@ -103,10 +106,10 @@ local function bezier(p0: Vector3, p1: Vector3, p2: Vector3, t: number): Vector3
 	return p0 * (u * u) + p1 * (2 * u * t) + p2 * (t * t)
 end
 
-local function turnPiece(i: number, j: number, fromDir: string, fromLane: number, toDir: string, toLane: number): Piece
+local function turnPiece(i: number, j: number, fromDir: string, fromLat: number, toDir: string, toLane: number): Piece
 	local c = CityGrid.intersection(i, j)
 	local d1, d2 = DIRS[fromDir], DIRS[toDir]
-	local p0 = c - d1 * (R / 2) + CityGrid.right(d1) * CityGrid.laneOffset(fromLane)
+	local p0 = c - d1 * (R / 2) + CityGrid.right(d1) * fromLat
 	local p2 = c + d2 * (R / 2) + CityGrid.right(d2) * CityGrid.laneOffset(toLane)
 	local p1 = if d1:Dot(d2) > 0.9 then (p0 + p2) / 2 else p0 + d1 * (p2 - p0):Dot(d1)
 	local len = 0
@@ -210,11 +213,12 @@ local function mustStop(car: Car, distToLine: number): boolean
 end
 
 -- Коридор впереди по ходу: ближайшее препятствие (студы от бампера).
-local function scanAhead(car: Car, cf: CFrame, lateral: number?): number
+local function scanAhead(car: Car, cf: CFrame, lateral: number?): (number, BasePart?)
 	local look = math.clamp(8 + car.v * 1.5, 12, 60)
 	local center = cf * CFrame.new(lateral or 0, 3, -(car.half + look / 2 + 0.5))
 	local hits = workspace:GetPartBoundsInBox(center, Vector3.new(car.width * 0.85, 5, look), overlap)
 	local best = math.huge
+	local bestPart: BasePart? = nil
 	local front = cf * CFrame.new(0, 0, -car.half)
 	for _, h in hits do
 		if h:IsDescendantOf(car.model) then
@@ -224,9 +228,10 @@ local function scanAhead(car: Car, cf: CFrame, lateral: number?): number
 		local d = -rel.Z - math.max(h.Size.X, h.Size.Z) / 2
 		if d < best then
 			best = math.max(0, d)
+			bestPart = h
 		end
 	end
-	return best
+	return best, bestPart
 end
 
 -- Свободна ли соседняя полоса рядом и чуть впереди (для перестроения).
@@ -350,6 +355,8 @@ local function spawnCar(): Car?
 			s = s,
 			v = Cfg.Speed * 0.5,
 			obstacle = math.huge,
+			blocker = nil,
+			queued = false,
 			aiAcc = math.random() * AI_RATE,
 			stuck = 0,
 			waitedBehind = 0,
@@ -357,6 +364,7 @@ local function spawnCar(): Car?
 		}
 		car.plan, car.nextDir = choosePlan(ni, nj, dir)
 		model.Parent = folder
+		byModel[model] = car
 		pcall(function()
 			chassis:SetNetworkOwner(nil)
 		end)
@@ -369,6 +377,7 @@ end
 local function removeCar(index: number)
 	local car = cars[index]
 	table.remove(cars, index)
+	byModel[car.model] = nil
 	if car.model.Parent then
 		car.model:Destroy()
 	end
@@ -377,11 +386,22 @@ end
 -- Решения 10 раз в секунду: препятствия, перестроение, «застрял».
 local function think(car: Car, step: number)
 	local cf = car.cf
-	car.obstacle = scanAhead(car, cf)
+	local hit: BasePart?
+	car.obstacle, hit = scanAhead(car, cf)
+	car.blocker = nil
+	if hit and folder and hit:IsDescendantOf(folder) then
+		local m = hit:FindFirstAncestorOfClass("Model")
+		car.blocker = m and byModel[m]
+	end
 	if car.piece.kind ~= "seg" then
+		car.queued = false
 		return
 	end
 	local distToEnd = car.piece.len - car.s - car.half
+	-- В очереди: стоим у стоп-линии или за машиной, которая сама в очереди.
+	local stopped = car.v < 1.5
+	car.queued = stopped
+		and ((distToEnd - STOP_MARGIN < 4 and mustStop(car, distToEnd - STOP_MARGIN)) or (car.blocker ~= nil and (car.blocker :: Car).queued))
 	-- Перестроиться под поворот заранее.
 	local want = wantLane(car)
 	if want ~= car.lane and distToEnd > 25 then
@@ -393,7 +413,7 @@ local function think(car: Car, step: number)
 	end
 	-- Объезд: впереди что-то стоит, а мы не у светофора.
 	local atLine = distToEnd - STOP_MARGIN < 4
-	if car.obstacle < 18 and car.v < 1.5 and not atLine then
+	if car.obstacle < 18 and car.v < 1.5 and not atLine and not car.queued then
 		car.waitedBehind += step
 	else
 		car.waitedBehind = 0
@@ -457,7 +477,7 @@ local function advance(car: Car, dt: number)
 		if car.piece.kind == "seg" then
 			-- Въезжаем на перекрёсток.
 			local toLane = if car.plan == "R" then CityConfig.LanesPerDirection elseif car.plan == "L" then 1 else car.lane
-			car.piece = turnPiece(car.i, car.j, car.dir, car.lane, car.nextDir, toLane)
+			car.piece = turnPiece(car.i, car.j, car.dir, car.lat, car.nextDir, toLane)
 			car.lane = toLane
 		else
 			-- Съехали с перекрёстка на следующую улицу.
@@ -544,6 +564,7 @@ function Traffic.init(mapChanged: RBXScriptSignal)
 			local car = cars[index]
 			if not car.model.Parent or not car.chassis.Parent then
 				table.remove(cars, index)
+				byModel[car.model] = nil
 				continue
 			end
 			car.aiAcc += dt

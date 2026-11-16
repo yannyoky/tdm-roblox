@@ -34,6 +34,8 @@ local WeaponService = {}
 
 -- Вызывается после каждого выстрела: (стрелок, точка выстрела). Ставит BotService.
 WeaponService.onShot = nil :: ((any, Vector3) -> ())?
+-- Другие слушатели выстрелов (например, прохожие в режиме «Город»): fn(shooter, origin).
+WeaponService.shotListeners = {} :: { (any, Vector3) -> () }
 
 local hooks = {
 	canDamage = function(_a, _v)
@@ -274,6 +276,11 @@ function WeaponService.fire(shooter, char: Model?, weaponId: string, origin: Vec
 	-- Выстрел слышат боты врага поблизости.
 	if WeaponService.onShot and not def.Melee then
 		task.spawn(WeaponService.onShot, shooter, origin)
+	end
+	if not def.Melee then
+		for _, fn in WeaponService.shotListeners do
+			task.spawn(fn, shooter, origin)
+		end
 	end
 
 	local unit = direction.Unit

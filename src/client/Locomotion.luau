@@ -283,6 +283,31 @@ function Locomotion.init()
 		bots[child :: Model] = nil
 		states[child :: Model] = nil
 	end)
+	-- Прохожие режима «Город» (World/Pedestrians) лежат в папке workspace.Pedestrians.
+	local function watchPeds(f: Instance)
+		if f.Name ~= "Pedestrians" or not f:IsA("Folder") then
+			return
+		end
+		f.ChildAdded:Connect(function(child)
+			if child:IsA("Model") then
+				bots[child] = true
+			end
+		end)
+		f.ChildRemoved:Connect(function(child)
+			bots[child :: Model] = nil
+			states[child :: Model] = nil
+		end)
+		for _, child in f:GetChildren() do
+			if child:IsA("Model") then
+				bots[child] = true
+			end
+		end
+	end
+	workspace.ChildAdded:Connect(watchPeds)
+	local pf = workspace:FindFirstChild("Pedestrians")
+	if pf then
+		watchPeds(pf)
+	end
 	for _, child in workspace:GetChildren() do
 		track(child)
 	end
