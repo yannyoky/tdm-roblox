@@ -1,4 +1,4 @@
--- Меню «Персонаж» (клавиша U): внешность (кожа, тело, лицо, причёска, борода, очки),
+-- Меню «Персонаж» (клавиша U): тело (мужское или женское), кожа, лицо, причёска, борода, очки,
 -- одежда и форма каждой стороны. Всё сохраняется сразу при выборе.
 -- Предпросмотр собирает сервер (ApplyDescription клиенту недоступен) и кладёт модель
 -- в PlayerGui.LookPreview; меню показывает её копию в ViewportFrame.
@@ -270,33 +270,69 @@ function SkinMenu.init()
 		rebuild()
 	end
 
+	-- Сменить тело: лицо, причёску и бороду другого пола заменяем на подходящие.
+	local function setBody(bodyId: string)
+		look.Body = bodyId
+		local gender = Appearance.genderOf(bodyId)
+		for key, value in Appearance.GenderDefaults[gender] do
+			if not Appearance.fits(Appearance.option(key, look[key]), gender) or key == "Beard" and gender ~= "M" then
+				look[key] = value
+			end
+		end
+		Net.get("SetLook"):FireServer(look)
+		requestPreview()
+		rebuild()
+	end
+
 	local function buildLookTab()
-		header(1, "Цвет кожи")
-		local tones = Ui.make("Frame", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = list }, {
+		local bodyId = look.Body or Appearance.DefaultLook.Body
+		local gender = Appearance.genderOf(bodyId)
+		header(1, "Тело")
+		local bodies = Ui.make("Frame", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, Parent = list }, {
+			Ui.make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
+		})
+		for i, opt in Appearance.Options.Body do
+			local b = Ui.button(opt.Name, {
+				LayoutOrder = i,
+				Size = UDim2.new(0.5, -4, 0, 42),
+				BackgroundColor3 = if opt.Id == bodyId then C.Accent else C.Button,
+				Parent = bodies,
+			})
+			b.Activated:Connect(function()
+				if opt.Id ~= bodyId then
+					setBody(opt.Id)
+				end
+			end)
+		end
+
+		header(3, "Цвет кожи")
+		local tones = Ui.make("Frame", { LayoutOrder = 4, Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = list }, {
 			Ui.make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
-		local currentTone = look.Tone or 0
-		for i = 0, #Appearance.Tones do
-			local selected = currentTone == i
-			local b = Ui.button(if i == 0 then "Аватар" else "", {
+		local currentTone = look.Tone or Appearance.DefaultLook.Tone
+		for i, color in Appearance.Tones do
+			local b = Ui.button("", {
 				LayoutOrder = i,
-				Size = UDim2.new(0, if i == 0 then 70 else 36, 0, 36),
-				TextSize = 12,
-				BackgroundColor3 = Appearance.Tones[i] or C.Button,
+				Size = UDim2.new(0, 36, 0, 36),
+				BackgroundColor3 = color,
 				Parent = tones,
 			})
-			if selected then
+			if currentTone == i then
 				Ui.make("UIStroke", { Color = C.Accent, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = b })
 			end
 			b.Activated:Connect(function()
 				setLook("Tone", i)
 			end)
 		end
-		header(3, "Лицо и тело")
+
+		header(5, "Лицо и причёска")
 		for i, slot in Appearance.LookSlots do
-			picker(3 + i, slot.Name, Appearance.Options[slot.Key], look[slot.Key] or Appearance.DefaultLook[slot.Key], function(id)
-				setLook(slot.Key, id)
-			end)
+			if slot.Gender == nil or slot.Gender == gender then
+				local current = look[slot.Key] or Appearance.GenderDefaults[gender][slot.Key] or Appearance.DefaultLook[slot.Key]
+				picker(5 + i, slot.Name, Appearance.optionsFor(slot.Key, gender), current, function(id)
+					setLook(slot.Key, id)
+				end)
+			end
 		end
 		Ui.label({
 			LayoutOrder = 20,
@@ -306,7 +342,7 @@ function SkinMenu.init()
 			TextWrapped = true,
 			TextColor3 = C.Grey,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			Text = "Внешность общая для обеих сторон. В лобби меняется сразу, в бою — со следующего появления.",
+			Text = "Внешность общая для обеих сторон. Одежда — на вкладках сторон. В лобби меняется сразу, в бою — со следующего появления.",
 			Parent = list,
 		})
 	end

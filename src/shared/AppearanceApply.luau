@@ -32,12 +32,23 @@ function AppearanceApply.sanitizeLook(look: any): { [string]: any }
 	if type(look) ~= "table" then
 		return clean
 	end
-	if type(look.Tone) == "number" and look.Tone == math.floor(look.Tone) and look.Tone >= 0 and look.Tone <= #Appearance.Tones then
+	if type(look.Tone) == "number" and look.Tone == math.floor(look.Tone) and look.Tone >= 1 and look.Tone <= #Appearance.Tones then
 		clean.Tone = look.Tone
+	end
+	-- Тело: только одно из двух. Старые сохранения («avatar», кубические тела) — мужское.
+	local body = type(look.Body) == "string" and Appearance.option("Body", look.Body)
+	if body then
+		clean.Body = body.Id
+	end
+	local gender = Appearance.genderOf(clean.Body)
+	local defaults = Appearance.GenderDefaults[gender]
+	for key, value in defaults do
+		clean[key] = value
 	end
 	for _, slot in Appearance.LookSlots do
 		local value = look[slot.Key]
-		if type(value) == "string" and Appearance.option(slot.Key, value) then
+		local opt = type(value) == "string" and Appearance.option(slot.Key, value)
+		if opt and Appearance.fits(opt, gender) and (slot.Gender == nil or slot.Gender == gender) then
 			clean[slot.Key] = value
 		end
 	end
@@ -55,16 +66,17 @@ function AppearanceApply.sanitizeOutfit(faction: string, outfit: any): { [string
 	return clean
 end
 
--- base — описание аватара игрока (или nil). faction = nil — лобби: своя одежда аватара остаётся.
+-- Персонаж собирается с нуля: аватар игрока Roblox не используется.
+-- faction = nil — лобби: простая одежда из Appearance.LobbyOutfit.
 -- skinId — скин стороны: его вещи надеваются в слоты, где игрок оставил «как в скине».
 function AppearanceApply.describe(
-	base: HumanoidDescription?,
 	look: { [string]: any },
 	faction: string?,
 	outfit: { [string]: string }?,
 	skinId: string?
 ): HumanoidDescription
-	local desc = if base then base:Clone() else Instance.new("HumanoidDescription")
+	look = AppearanceApply.sanitizeLook(look)
+	local desc = Instance.new("HumanoidDescription")
 
 	for _, prop in EXTRA_PROPS do
 		(desc :: any)[prop] = ""
@@ -74,33 +86,27 @@ function AppearanceApply.describe(
 	end
 
 	-- Цвет кожи.
-	local tone = Appearance.Tones[look.Tone or 0]
-	if tone then
-		for _, prop in COLOR_PROPS do
-			(desc :: any)[prop] = tone
-		end
+	local tone = Appearance.Tones[look.Tone] or Appearance.Tones[Appearance.DefaultLook.Tone]
+	for _, prop in COLOR_PROPS do
+		(desc :: any)[prop] = tone
 	end
 
-	-- Телосложение (меши частей тела).
-	local body = Appearance.option("Body", look.Body)
-	if body and body.Parts then
-		for _, part in BODY_PARTS do
-			(desc :: any)[part] = body.Parts[part] or 0
-		end
+	-- Тело (меши частей тела одного из двух реалистичных тел).
+	local body = Appearance.option("Body", look.Body) or Appearance.Options.Body[1]
+	for _, part in BODY_PARTS do
+		(desc :: any)[part] = body.Parts[part] or 0
 	end
 
 	-- Голова и лицо.
-	local head = Appearance.option("Head", look.Head)
-	if head and head.Id ~= Appearance.AVATAR then
+	local head = Appearance.option("Head", look.Head) or Appearance.option("Head", body.Head)
+	if head then
 		desc.Head = head.Asset or 0
-		desc.Face = head.Face or 0
+		desc.Face = 0
 	end
 
 	-- Причёска.
 	local hair = Appearance.option("Hair", look.Hair)
-	if hair and hair.Id ~= Appearance.AVATAR then
-		desc.HairAccessory = if hair.Asset then tostring(hair.Asset) else ""
-	end
+	desc.HairAccessory = if hair and hair.Asset then tostring(hair.Asset) else ""
 
 	-- Борода и очки — оба в слоте лица.
 	local faceItems = {}
@@ -111,16 +117,23 @@ function AppearanceApply.describe(
 		end
 	end
 
-	if faction then
-		-- В бою одежда аватара заменяется формой стороны и выбранными вещами.
+	do
+		-- Одежда: в бою — форма стороны и выбранные вещи, в лобби — простой комплект.
 		desc.Shirt = 0
 		desc.Pants = 0
 		desc.GraphicTShirt = 0
 		desc.HatAccessory = ""
 		local layered = {}
+		local preset
+		if not faction then
+			faction = Appearance.LobbyOutfit.Faction
+			preset = Appearance.LobbyOutfit
+			outfit = nil
+		else
+			local skin = skinId and Skins.List[skinId]
+			preset = if skin and skin.Faction == faction then skin.Outfit or {} else {}
+		end
 		local pieces = Appearance.Clothing[faction] or {}
-		local skin = skinId and Skins.List[skinId]
-		local preset = if skin and skin.Faction == faction then skin.Outfit or {} else {}
 		for _, slot in Appearance.ClothingSlots do
 			local choice = outfit and outfit[slot.Key]
 			if choice == nil or choice == Appearance.UNIFORM then
@@ -159,14 +172,14 @@ end
 function AppearanceApply.randomLook(): { [string]: any }
 	local gender = if math.random() < 0.8 then "M" else "F"
 	local look = { Tone = math.random(#Appearance.Tones) }
-	for _, slot in Appearance.LookSlots do
-		local pool = {}
-		for _, opt in Appearance.Options[slot.Key] do
-			if opt.Id ~= Appearance.AVATAR and (opt.Gender == nil or opt.Gender == gender) then
-				table.insert(pool, opt.Id)
-			end
+	for _, opt in Appearance.Options.Body do
+		if opt.Gender == gender then
+			look.Body = opt.Id
 		end
-		look[slot.Key] = if #pool > 0 then pool[math.random(#pool)] else Appearance.DefaultLook[slot.Key]
+	end
+	for _, slot in Appearance.LookSlots do
+		local pool = Appearance.optionsFor(slot.Key, gender)
+		look[slot.Key] = if #pool > 0 then pool[math.random(#pool)].Id else Appearance.DefaultLook[slot.Key]
 	end
 	if gender == "F" or math.random() < 0.4 then
 		look.Beard = "none"

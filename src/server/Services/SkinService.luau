@@ -20,8 +20,6 @@ local ShopService = require(script.Parent.ShopService)
 
 local SkinService = {}
 
--- Описание аватара Roblox каждого игрока (берём один раз за сессию).
-local avatarDescs: { [Player]: HumanoidDescription } = {}
 local previewBusy: { [Player]: boolean } = {}
 local previewQueued: { [Player]: any } = {}
 
@@ -92,28 +90,13 @@ function SkinService.outfit(player: Player, faction: string): { [string]: string
 	return AppearanceApply.sanitizeOutfit(faction, data and data.Outfit and data.Outfit[faction])
 end
 
-local function avatarDesc(player: Player): HumanoidDescription?
-	if avatarDescs[player] then
-		return avatarDescs[player]
-	end
-	if player.UserId <= 0 then
-		return nil -- тестовые игроки Studio без аватара
-	end
-	local ok, desc = pcall(Players.GetHumanoidDescriptionFromUserId, Players, player.UserId)
-	if ok and desc then
-		avatarDescs[player] = desc
-		return desc
-	end
-	return nil
-end
-
 -- Описание персонажа игрока: внешность + (в бою) скин и одежда стороны. faction = nil — лобби.
+-- Аватар Roblox не используется: тело всегда одно из двух реалистичных (Config/Appearance).
 function SkinService.describe(player: Player, faction: string?): HumanoidDescription
 	if not faction then
-		return AppearanceApply.describe(avatarDesc(player), SkinService.look(player), nil)
+		return AppearanceApply.describe(SkinService.look(player), nil)
 	end
 	return AppearanceApply.describe(
-		avatarDesc(player),
 		SkinService.look(player),
 		faction,
 		SkinService.outfit(player, faction),
@@ -127,8 +110,14 @@ function SkinService.loadCharacter(player: Player, faction: string?)
 		player:LoadCharacterWithHumanoidDescription(SkinService.describe(player, faction))
 	end)
 	if not ok then
-		warn("[SkinService] Внешность не применилась, обычное появление: ", err)
-		player:LoadCharacter()
+		-- Не загрузилась одежда — появляемся хотя бы в теле по умолчанию, без аватара.
+		warn("[SkinService] Внешность не применилась, тело по умолчанию: ", err)
+		local okDefault = pcall(function()
+			player:LoadCharacterWithHumanoidDescription(AppearanceApply.describe({}, faction, nil, nil))
+		end)
+		if not okDefault then
+			player:LoadCharacter()
+		end
 	end
 end
 
@@ -141,7 +130,7 @@ end
 function SkinService.botModel(faction: string): Model
 	local list = Skins.Order[faction]
 	local skinId = if list then list[math.random(#list)] else nil
-	local desc = AppearanceApply.describe(nil, AppearanceApply.randomLook(), faction, AppearanceApply.randomOutfit(faction), skinId)
+	local desc = AppearanceApply.describe(AppearanceApply.randomLook(), faction, AppearanceApply.randomOutfit(faction), skinId)
 	local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
 	if not ok then
 		warn("[SkinService] Внешность бота не загрузилась: ", model)
@@ -188,7 +177,7 @@ local function buildPreview(player: Player, request)
 		if faction and not (skinId and Skins.List[skinId] and Skins.List[skinId].Faction == faction) then
 			skinId = SkinService.selected(player, faction)
 		end
-		local desc = AppearanceApply.describe(avatarDesc(player), look, faction, outfit, if faction then skinId else nil)
+		local desc = AppearanceApply.describe(look, faction, outfit, if faction then skinId else nil)
 		local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
 		local gui = player:FindFirstChildOfClass("PlayerGui")
 		if ok and model and gui and player.Parent == Players then
@@ -280,7 +269,6 @@ function SkinService.init()
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
-		avatarDescs[player] = nil
 		previewBusy[player] = nil
 		previewQueued[player] = nil
 	end)
@@ -300,7 +288,6 @@ function SkinService.init()
 			SkinService.publish(player)
 			SkinService.publishLook(player)
 		end
-		task.spawn(avatarDesc, player)
 	end
 	Players.PlayerAdded:Connect(watch)
 	for _, player in Players:GetPlayers() do
