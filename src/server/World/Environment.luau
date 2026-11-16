@@ -6,6 +6,7 @@
 -- Погода (Clear, Cloudy, Rain, Storm) меняется сама, переходы плавные. Клиенту передаётся через
 -- атрибуты ReplicatedStorage: Weather (имя), RainIntensity (0..1), LightningStrike (счётчик вспышек).
 -- Капли, звук дождя, мокрый асфальт и вспышки молний рисует src/client/Weather.luau.
+local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -21,6 +22,7 @@ local Environment = {}
 local enabled = false
 local clock = Config.DayNight.StartTime
 local lampsNight: boolean? = nil
+local windowsNight: boolean? = nil
 
 -- Погода: текущие значения плавно идут к целевым.
 local W = Config.Weather
@@ -60,6 +62,30 @@ local function setWeather(name: string)
 	target = W.States[name] or W.States.Clear
 	weatherLeft = math.random(W.Duration[1], W.Duration[2])
 	ReplicatedStorage:SetAttribute("Weather", name)
+end
+
+-- Окна с тегом NightWindow (ставит CityBuilder) ночью светятся тёплым светом.
+local function setWindows(night: boolean)
+	local lit = Config.DayNight.LitColor
+	for _, p in CollectionService:GetTagged("NightWindow") do
+		if not p:IsA("BasePart") then
+			continue
+		end
+		if p:GetAttribute("DayColor") == nil then
+			p:SetAttribute("DayColor", p.Color)
+			p:SetAttribute("DayMaterial", p.Material.Name)
+			p:SetAttribute("DayTransparency", p.Transparency)
+		end
+		if night then
+			p.Color = lit
+			p.Material = Enum.Material.Neon
+			p.Transparency = 0
+		else
+			p.Color = p:GetAttribute("DayColor")
+			p.Material = (Enum.Material :: any)[p:GetAttribute("DayMaterial")]
+			p.Transparency = p:GetAttribute("DayTransparency")
+		end
+	end
 end
 
 -- Смесь трёх пресетов света по высоте солнца.
@@ -120,6 +146,12 @@ local function applyLight()
 		lampsNight = night
 		Detailer.updateLamps(if night then 0 else 12)
 	end
+	-- Окна загораются только в темноте (не днём в ливень).
+	local dark = clock >= DecorConfig.Lamps.NightFrom or clock <= DecorConfig.Lamps.NightTo
+	if dark ~= windowsNight then
+		windowsNight = dark
+		setWindows(dark)
+	end
 end
 
 local function onMap(map: Instance?)
@@ -127,6 +159,7 @@ local function onMap(map: Instance?)
 	local cfg = id and MapsConfig.List[id]
 	enabled = cfg ~= nil and cfg.DayNight == true and Config.DayNight.Enabled
 	lampsNight = nil
+	windowsNight = nil
 	if enabled then
 		clock = Config.DayNight.StartTime
 		current = table.clone(W.States[W.Start] or W.States.Clear)
@@ -144,6 +177,22 @@ function Environment.init(mapChanged: RBXScriptSignal)
 	ReplicatedStorage:SetAttribute("LightningStrike", 0)
 	mapChanged:Connect(onMap)
 	onMap(workspace:FindFirstChild("Map"))
+	-- Для проверки в Studio: из командной строки сервера
+	--   game.ReplicatedStorage:SetAttribute("DebugTime", 22)
+	--   game.ReplicatedStorage:SetAttribute("DebugWeather", "Storm")
+	ReplicatedStorage:GetAttributeChangedSignal("DebugTime"):Connect(function()
+		local t = ReplicatedStorage:GetAttribute("DebugTime")
+		if type(t) == "number" then
+			Environment.setTime(t)
+		end
+	end)
+	ReplicatedStorage:GetAttributeChangedSignal("DebugWeather"):Connect(function()
+		local name = ReplicatedStorage:GetAttribute("DebugWeather")
+		if type(name) == "string" and W.States[name] then
+			Environment.setWeather(name)
+			current = table.clone(W.States[name])
+		end
+	end)
 
 	local acc = 0
 	RunService.Heartbeat:Connect(function(dt)

@@ -57,6 +57,8 @@ local C = {
 local STREETS_V = { "пр. Мира", "ул. Ленина", "ул. Гагарина", "ул. Пушкина", "ул. Кирова", "ул. Садовая", "ул. Лесная", "ул. Речная" }
 local STREETS_H = { "ул. Советская", "ул. Набережная", "пр. Победы", "ул. Центральная", "ул. Молодёжная", "ул. Заводская", "ул. Новая", "ул. Школьная" }
 
+local nightDetails: (geo: Instance, rng: Random) -> ()
+
 local function folder(parent: Instance, name: string): Folder
 	local f = Instance.new("Folder")
 	f.Name = name
@@ -648,8 +650,17 @@ function lots.park(ctx, bc: Vector3, rng: Random)
 	-- Фонтан.
 	local f = Instance.new("Model")
 	f.Name = "Fountain"
-	Props.post(f, "FountainRim", CFrame.new(c), 1.6, 26, C.concrete, Enum.Material.Concrete, true)
-	Props.post(f, "FountainWater", CFrame.new(c + Vector3.new(0, 1.2, 0)), 0.3, 24, rgb(70, 110, 130), Enum.Material.Glass)
+	-- Чаша: дно и кольцевой бортик из сегментов (внутри видно воду).
+	Props.post(f, "FountainFloor", CFrame.new(c), 0.6, 25, C.concrete, Enum.Material.Concrete, true)
+	for k = 0, 15 do
+		local a = (k + 0.5) / 16 * math.pi * 2
+		local p = c + Vector3.new(math.cos(a), 0, math.sin(a)) * 12.4
+		part(f, "FountainRim", Vector3.new(5.2, 2, 1.3), CFrame.lookAt(p, c) * CFrame.new(0, 1, 0), C.concrete, Enum.Material.Concrete, true)
+	end
+	Props.post(f, "FountainWater", CFrame.new(c + Vector3.new(0, 0.6, 0)), 0.9, 24, rgb(58, 96, 112), Enum.Material.SmoothPlastic)
+	local water = f:FindFirstChild("FountainWater") :: BasePart
+	water.Transparency = 0.15
+	water.Reflectance = 0.35
 	Props.post(f, "FountainColumn", CFrame.new(c), 5.5, 3.5, C.concrete, Enum.Material.Concrete, true)
 	Props.post(f, "FountainBowl", CFrame.new(c + Vector3.new(0, 5.5, 0)), 0.9, 10, C.concrete, Enum.Material.Concrete)
 	local spout = part(f, "Spout", Vector3.new(0.6, 0.6, 0.6), CFrame.new(c + Vector3.new(0, 7, 0)), C.concrete, Enum.Material.Concrete)
@@ -674,10 +685,15 @@ function lots.park(ctx, bc: Vector3, rng: Random)
 		bench(ctx, parent, CFrame.lookAt(p, c))
 	end
 	-- Фонари на кольце.
+	-- Фонари за скамейками, между дорожками (дорожки идут по осям и диагоналям).
 	for k = 0, 3 do
-		local a = k / 4 * math.pi * 2 + math.pi / 4
-		local p = c + Vector3.new(math.cos(a), 0, math.sin(a)) * (ringR + 5)
+		local a = (k + 0.25) / 4 * math.pi * 2
+		local p = c + Vector3.new(math.cos(a), 0, math.sin(a)) * (ringR + 11)
 		Detailer.streetLamp(parent, CFrame.lookAt(p, c), -1)
+	end
+	-- Входы в парк с середины сторон: на тротуаре напротив ничего не ставим.
+	for _, side in SIDES do
+		table.insert(ctx.skips, { bc = bc, side = side, u = 0, w = 10 })
 	end
 	-- Деревья и кусты подальше от дорожек.
 	local function nearPath(p: Vector3): boolean
@@ -782,6 +798,56 @@ local function outskirts(ctx, rng: Random)
 end
 
 ------------------------------------------------------------------------
+-- Ночь: окна, которые загораются (тег NightWindow, включает World/Environment), и яркие фонари.
+
+local function nightWindow(p: BasePart)
+	CollectionService:AddTag(p, "NightWindow")
+end
+
+nightDetails = function(geo: Instance, rng: Random)
+	local dn = Config.DayNight
+	for _, inst in geo:GetDescendants() do
+		if inst:IsA("BasePart") then
+			if inst.Name == "WindowGlass" and inst.Material ~= Enum.Material.Neon and rng:NextNumber() < dn.LitWindows then
+				nightWindow(inst)
+			elseif CollectionService:HasTag(inst, "StreetLamp") then
+				local light = inst:FindFirstChildOfClass("SpotLight")
+				if light then
+					light.Range = dn.LampRange
+					light.Brightness = dn.LampBrightness
+					light.Angle = 150
+				end
+			end
+		end
+	end
+	-- Высотки: полосы светящихся окон на части этажей.
+	for _, tower in geo:GetChildren() do
+		local glass = tower:IsA("Model") and tower.Name == "Tower" and tower:FindFirstChild("TowerGlass") :: BasePart?
+		if not glass then
+			continue
+		end
+		local size = glass.Size
+		local fh = Config.Towers.FloorHeight
+		local floors = math.floor(size.Y / fh)
+		for f = 0, floors - 1 do
+			for _, face in { Vector3.new(0, 0, -1), Vector3.new(0, 0, 1), Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0) } do
+				if rng:NextNumber() < dn.LitWindows * 1.4 then
+					local len = if face.X == 0 then size.X else size.Z
+					local depth = if face.X == 0 then size.Z else size.X
+					local w = rng:NextNumber(6, math.max(7, len * 0.5))
+					local u = rng:NextNumber(-len / 2 + w / 2 + 1, len / 2 - w / 2 - 1)
+					local y = glass.Position.Y - size.Y / 2 + f * fh + fh / 2 + 0.3
+					local t = CityGrid.right(face)
+					local p = Vector3.new(glass.Position.X, y, glass.Position.Z) + face * (depth / 2 + 0.06) + t * u
+					local panel = part(tower, "LitWindows", Vector3.new(if face.X == 0 then w else 0.1, fh - 3, if face.X == 0 then 0.1 else w), CFrame.new(p), glass.Color, Enum.Material.SmoothPlastic, false, { Transparency = 1, CastShadow = false })
+					nightWindow(panel)
+				end
+			end
+		end
+	end
+end
+
+------------------------------------------------------------------------
 
 -- ctx (даёт MapBuilder):
 --   map, geo       -- папки карты
@@ -839,6 +905,7 @@ function CityBuilder.build(ctx)
 	outskirts(ctx, rng)
 	markings.Parent = ctx.geo
 	street.Parent = ctx.geo
+	nightDetails(ctx.geo, rng)
 	return city
 end
 

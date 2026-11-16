@@ -78,6 +78,12 @@ City.DayNight = {
 	Enabled = true,
 	DayMinutes = 24, -- реальных минут на полные игровые сутки
 	StartTime = 9, -- во сколько начинается матч
+	-- Ночью горит такая доля окон домов (и полосы окон в высотках).
+	LitWindows = 0.35,
+	LitColor = rgb(255, 205, 150),
+	-- Уличные фонари в городе ярче, чем на остальных картах.
+	LampRange = 52,
+	LampBrightness = 4,
 	-- Свет днём и ночью; между ними плавный переход по высоте солнца.
 	Day = {
 		Brightness = 3,
@@ -98,13 +104,13 @@ City.DayNight = {
 		Tint = rgb(255, 228, 205),
 	},
 	Night = {
-		Brightness = 0.6,
-		ExposureCompensation = 0.55,
-		Ambient = rgb(28, 32, 44),
-		OutdoorAmbient = rgb(48, 56, 78),
-		AtmosphereColor = rgb(40, 48, 66),
-		AtmosphereDecay = rgb(30, 36, 52),
-		Tint = rgb(205, 215, 255),
+		Brightness = 1.1,
+		ExposureCompensation = 0.85,
+		Ambient = rgb(48, 54, 70),
+		OutdoorAmbient = rgb(78, 88, 116),
+		AtmosphereColor = rgb(46, 54, 74),
+		AtmosphereDecay = rgb(34, 40, 58),
+		Tint = rgb(210, 220, 255),
 	},
 }
 
