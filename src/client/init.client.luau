@@ -21,6 +21,7 @@ local Viewmodel = require(script:WaitForChild("Viewmodel"))
 local WeaponPose = require(script:WaitForChild("WeaponPose"))
 local Graphics = require(script:WaitForChild("Graphics"))
 local Weather = require(script:WaitForChild("Weather"))
+local Locomotion = require(script:WaitForChild("Locomotion"))
 
 -- Настройки и система окон нужны остальным модулям, поэтому запускаются первыми.
 PlayerSettings.init()
@@ -48,3 +49,4 @@ task.spawn(Viewmodel.init)
 task.spawn(WeaponPose.init)
 task.spawn(Graphics.init)
 task.spawn(Weather.init)
+task.spawn(Locomotion.init)
