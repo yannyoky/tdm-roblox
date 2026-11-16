@@ -3,8 +3,10 @@
 -- деталей своего Tool. Всё рисуется только у себя (детали лежат в камере), другие игроки
 -- по-прежнему видят персонажа с оружием в руке.
 --
--- Анимации процедурные: доставание, покачивание при ходьбе, инерция при повороте камеры,
--- отдача, перезарядка (левая рука уходит за магазином), бег, удар ножом/битой, бросок гранаты.
+-- Анимации процедурные: доставание, дыхание и покачивание на месте, покачивание при ходьбе,
+-- наклон оружия при движении вбок, инерция при повороте камеры, просадка при приземлении,
+-- отдача, перезарядка (левая рука уходит за магазином), бег с оружием у груди,
+-- удар ножом/битой, бросок гранаты.
 -- Положение оружия и левой руки для каждого оружия — таблица HOLD ниже.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -135,7 +137,8 @@ local function cleanCopy(part: BasePart, parent: Instance): BasePart
 	local c = part:Clone()
 	-- Внутри детали тела суставы, крепления аксессуаров, звуки — ничего этого не нужно.
 	for _, child in c:GetChildren() do
-		if not (child:IsA("SpecialMesh") or child:IsA("SurfaceAppearance")) then
+		-- Текстуры (Texture/Decal) оставляем: на них камуфляж и надписи моделей оружия.
+		if not (child:IsA("SpecialMesh") or child:IsA("SurfaceAppearance") or child:IsA("Texture") or child:IsA("Decal")) then
 			child:Destroy()
 		end
 	end
@@ -299,7 +302,8 @@ local function build(char: Model, tool: Tool): Built?
 
 	local pieces = {}
 	for _, d in tool:GetDescendants() do
-		if d:IsA("BasePart") and d.Transparency < 1 then
+		-- Детали дальше 6 студов от хвата — мусор модели (они висели бы перед камерой).
+		if d:IsA("BasePart") and d.Transparency < 1 and (d.Position - grip.Position).Magnitude < 6 then
 			local rel = grip:ToObjectSpace(d.CFrame)
 			local c = cleanCopy(d, model)
 			c.Name = "W_" .. d.Name
@@ -345,6 +349,11 @@ local bobT = 0
 local bobAmt = 0
 local sprintA = 0
 local airY = 0
+local strafe = 0 -- движение вбок относительно взгляда, −1..1
+local forward = 0 -- движение вперёд, −1..1
+local landDip = spring(170, 13) -- просадка при приземлении
+local wasGrounded = true
+local fallSpeed = 0
 local reloadStart: number? = nil
 local reloadEnd: number? = nil
 local swingStart: number? = nil
@@ -413,6 +422,17 @@ local function hideReal(char: Model, tool: Tool?)
 		local p = char:FindFirstChild(name)
 		if p and p:IsA("BasePart") then
 			p.LocalTransparencyModifier = 1
+		end
+	end
+	-- Одежда и аксессуары настоящего персонажа (рукава 3D-одежды, перчатки, часы):
+	-- его руки держат оружие перед грудью, и без этого рукава висели бы перед камерой.
+	for _, acc in char:GetChildren() do
+		if acc:IsA("Accessory") then
+			for _, d in acc:GetDescendants() do
+				if d:IsA("BasePart") then
+					d.LocalTransparencyModifier = 1
+				end
+			end
 		end
 	end
 	if tool then
@@ -488,6 +508,19 @@ local function update(dt: number)
 	local sprinting = grounded and flat > 19.5 and not busy
 	sprintA += ((if sprinting then 1 else 0) - sprintA) * math.min(1, dt * 9)
 	airY += ((if grounded then 0 else math.clamp(-vel.Y * 0.006, -0.2, 0.2)) - airY) * math.min(1, dt * 10)
+	-- Приземление: оружие проседает и пружинит обратно, сильнее после долгого падения.
+	if not grounded then
+		fallSpeed = math.max(fallSpeed, -vel.Y)
+	elseif not wasGrounded then
+		landDip.v -= math.clamp(fallSpeed * 0.09, 0.6, 4)
+		fallSpeed = 0
+	end
+	wasGrounded = grounded
+	stepSpring(landDip, dt)
+	-- Скорость относительно взгляда: вбок — наклон оружия, вперёд — оружие чуть отстаёт.
+	local localVel = camCf:VectorToObjectSpace(vel)
+	strafe += (math.clamp(localVel.X / 16, -1, 1) - strafe) * math.min(1, dt * 6)
+	forward += (math.clamp(-localVel.Z / 16, -1, 1) - forward) * math.min(1, dt * 5)
 
 	-- Инерция при повороте камеры.
 	local swayTarget = Vector3.zero
@@ -526,12 +559,30 @@ local function update(dt: number)
 	local ue = 1 - e
 
 	-- Смещения в пространстве камеры.
-	local bobX = math.sin(bobT) * 0.05 * bobAmt
-	local bobY = -math.abs(math.cos(bobT)) * 0.045 * bobAmt
-	local idle = math.sin(now * 1.6) * 0.012
-	local offset = CF(bobX - sway.Y * 0.6, bobY + idle + airY - ue * 1.1 + sway.X * 0.5, ue * 0.2)
-	local rotView = ANG(sway.X * 0.9 - ue * 0.9 + bobY * 0.4, sway.Y * 1.1, sway.Y * 0.8 + bobX * 0.6)
-	local sprintCf = CF(-0.2 * sprintA, -0.2 * sprintA, 0.15 * sprintA) * ANG(-0.35 * sprintA, 0.8 * sprintA, 0.3 * sprintA)
+	-- Шаг: восьмёрка (вбок на каждый шаг, вниз на каждое касание), на бегу размашистее.
+	local stride = bobAmt * (1 + 0.7 * sprintA)
+	local bobX = math.sin(bobT) * 0.05 * stride
+	local bobY = -math.abs(math.cos(bobT)) * 0.045 * stride
+	-- На месте: дыхание (вверх-вниз и чуть по наклону) и медленное покачивание рук.
+	local still = math.max(0, 1 - bobAmt) * (1 - sprintA)
+	local breath = math.sin(now * 1.25)
+	local idleX = math.sin(now * 0.55) * 0.018 * still
+	local idleY = (breath * 0.014 + math.sin(now * 1.1) * 0.005) * still
+	local idlePitch = breath * 0.012 * still
+	local idleRoll = math.sin(now * 0.55 + 1.3) * 0.02 * still
+	local dip = landDip.x
+	local offset = CF(
+		bobX - sway.Y * 0.6 + idleX - strafe * 0.05,
+		bobY + idleY + airY + dip * 0.25 - ue * 1.1 + sway.X * 0.5,
+		ue * 0.2 + forward * 0.05 * (1 - sprintA)
+	)
+	local rotView = ANG(
+		sway.X * 0.9 - ue * 0.9 + bobY * 0.4 + idlePitch + dip * 0.2,
+		sway.Y * 1.1,
+		sway.Y * 0.8 + bobX * 0.6 + idleRoll - strafe * 0.1 + ue * 0.4
+	)
+	-- Бег: оружие у груди наискосок, стволом влево-вниз.
+	local sprintCf = CF(-0.3 * sprintA, -0.28 * sprintA, 0.2 * sprintA) * ANG(-0.5 * sprintA, 0.85 * sprintA, 0.42 * sprintA)
 
 	-- Анимации в пространстве оружия: отдача, наклон при перезарядке, удар, бросок.
 	local local_ = CF(0, 0.08 * tilt, 0) * ANG(0.2 * tilt, 0.25 * tilt, 0.75 * tilt)
