@@ -429,15 +429,17 @@ local function hideReal(char: Model, tool: Tool?)
 	for _, acc in char:GetChildren() do
 		if acc:IsA("Accessory") then
 			for _, d in acc:GetDescendants() do
-				if d:IsA("BasePart") then
+				if d:IsA("BasePart") or d:IsA("Decal") then
 					d.LocalTransparencyModifier = 1
 				end
 			end
 		end
 	end
 	if tool then
+		-- Texture и Decal рисуются, даже когда деталь спрятана, поэтому прячем и их
+		-- (иначе камуфляж и стекло прицела висят перед камерой). Texture — наследник Decal.
 		for _, d in tool:GetDescendants() do
-			if d:IsA("BasePart") then
+			if d:IsA("BasePart") or d:IsA("Decal") then
 				d.LocalTransparencyModifier = 1
 			end
 		end
@@ -447,7 +449,7 @@ end
 local function showRealTool(tool: Tool?)
 	if tool and tool.Parent then
 		for _, d in tool:GetDescendants() do
-			if d:IsA("BasePart") then
+			if d:IsA("BasePart") or d:IsA("Decal") then
 				d.LocalTransparencyModifier = 0
 			end
 		end
