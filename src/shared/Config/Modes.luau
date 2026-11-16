@@ -9,7 +9,7 @@ return {
 		SpawnProtection = 2, -- секунд защиты после появления
 	},
 
-	Order = { "TDM", "Capture" },
+	Order = { "TDM", "Capture", "City" },
 
 	List = {
 		TDM = {
@@ -32,6 +32,19 @@ return {
 			CaptureTime = 30, -- секунд на захват одним игроком
 			WinsNeeded = 3, -- до 3 побед
 			PauseBetweenRounds = 5,
+		},
+		-- Свободная прогулка по открытому городу. Только здесь по улицам ходят прохожие
+		-- и ездят машины-NPC (CityLife); в боевых режимах на карте «Город» их нет.
+		City = {
+			Id = "City",
+			DisplayName = "Город",
+			Description = "Свободная прогулка по городу",
+			Module = "FreeRoam",
+			Map = "City", -- режим всегда на этой карте
+			Bots = false, -- без ботов-бойцов
+			CityLife = true, -- прохожие и трафик
+			Duration = 1500, -- 25 минут
+			RespawnDelay = 4,
 		},
 	},
 }

@@ -310,8 +310,10 @@ def main():
     with open(DATA, encoding="utf-8") as fh:
         data = json.load(fh)
     warns = []
-    out = {"order": data["Order"], "maps": {}}
-    for map_id in data["Order"]:
+    # Город (City) собирается по сетке в World/CityBuilder.luau, схемы у него нет.
+    order = [m for m in data["Order"] if not data["List"][m].get("City")]
+    out = {"order": order, "maps": {}}
+    for map_id in order:
         out["maps"][map_id] = layout(map_id, data["List"][map_id], warns.append)
     for w in warns:
         print("ВНИМАНИЕ:", w, file=sys.stderr)

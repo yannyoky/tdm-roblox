@@ -19,6 +19,9 @@ local VehiclesConfig = require(Shared.Config.Vehicles)
 local DecorConfig = require(Shared.Config.Decor)
 local Detailer = require(script.Parent.Detailer)
 local BaseStyles = require(script.Parent.BaseStyles)
+local CityBuilder = require(script.Parent.CityBuilder)
+local CityConfig = require(Shared.Config.City)
+local CityGrid = require(Shared.CityGrid)
 
 local MapBuilder = {}
 
@@ -325,6 +328,7 @@ function builders.beam(geo: Instance, e)
 end
 
 local currentMapId = ""
+local buildLobbySpawns: (map: Folder) -> ()
 
 local function buildElement(geo: Instance, e, style: Random)
 	local fn = builders[e.k]
@@ -768,6 +772,50 @@ function MapBuilder.build(mapId: string): Folder
 		make("Part", { Name = "Boundary", Size = b[1], CFrame = CFrame.new(b[2]), Transparency = 1, CanQuery = false }, geo)
 	end
 
+	-- Открытый город: своя сборка по сетке улиц (World/CityBuilder.luau).
+	if cfg.City then
+		CityBuilder.build({
+			map = map,
+			geo = geo,
+			place = function(e)
+				buildElement(geo, e, style)
+			end,
+			buildBase = function(teamKey: string, pos: Vector3, gateDir: Vector3)
+				return buildBase(map, geo, teamKey, { x = pos.X, z = pos.Z }, pos + gateDir * 300)
+			end,
+		})
+		-- Зоны каптов и передовые точки из Config/City.
+		local points = map:FindFirstChild("CapturePoints") :: Folder
+		for _, zone in CityConfig.Zones do
+			local bc = CityGrid.blockCenter(zone.col, zone.row)
+			local zonePart = make("Part", {
+				Name = zone.Name,
+				Size = Vector3.new(zone.w, 1, zone.d),
+				CFrame = CFrame.new(bc.X, CityConfig.CurbHeight + 0.5, bc.Z),
+				Color = Color3.fromRGB(240, 240, 240),
+				Material = Enum.Material.SmoothPlastic,
+				Transparency = 0.75,
+				CanCollide = false,
+				CanQuery = false,
+				CanTouch = false,
+			}, points)
+			CollectionService:AddTag(zonePart, "CaptureZone")
+		end
+		for teamKey, f in CityConfig.Forward do
+			local bc = CityGrid.blockCenter(f.col, f.row)
+			buildForward(map, geo, teamKey, bc + Vector3.new(f.dx, CityConfig.CurbHeight, f.dz), Vector3.zero)
+		end
+		if DecorConfig.Detail then
+			map.Parent = workspace
+			local ok, err = pcall(Detailer.bases, geo, mapId)
+			if not ok then
+				warn("[MapBuilder] Отделка баз:", err)
+			end
+		end
+		buildLobbySpawns(map)
+		return map
+	end
+
 	local occ = Occupancy.new()
 	local center = Vector3.zero
 
@@ -902,7 +950,12 @@ function MapBuilder.build(mapId: string): Folder
 		end
 	end
 
-	-- Точки лобби (сама площадка общая, см. ensureLobby).
+	buildLobbySpawns(map)
+	return map
+end
+
+-- Точки лобби (сама площадка общая, см. ensureLobby).
+buildLobbySpawns = function(map: Folder)
 	local lobbySpawns = folder(map:FindFirstChild("Spawns") :: Instance, "Lobby")
 	local lp = MapsConfig.Lobby.Position
 	for i, offset in { Vector3.new(-10, 0, -10), Vector3.new(10, 0, -10), Vector3.new(-10, 0, 10), Vector3.new(10, 0, 10) } do
@@ -916,8 +969,6 @@ function MapBuilder.build(mapId: string): Folder
 			CanTouch = false,
 		}, lobbySpawns)
 	end
-
-	return map
 end
 
 return MapBuilder

@@ -1,7 +1,14 @@
 {
-  "Order": ["Industrial", "Suburb", "Port", "Village"],
+  "Order": ["City", "Industrial", "Suburb", "Port", "Village"],
   "Lobby": [0, 400, 0],
   "List": {
+    "City": {
+      "Name": "Город",
+      "City": true,
+      "DayNight": true,
+      "Size": 1284,
+      "Ground": { "Material": "Asphalt", "Color": [56, 57, 59] }
+    },
     "Industrial": {
       "Name": "Промзона",
       "Size": 1000,

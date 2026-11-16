@@ -1369,4 +1369,38 @@ function Detailer.updateLamps(clockTime: number)
 	end
 end
 
+------------------------------------------------------------------------
+-- Для города (World/CityBuilder.luau): те же деревья, кусты и фонари, что и на картах.
+
+-- Дерево у тротуара (с лункой и твёрдым стволом).
+function Detailer.tree(parent: Instance, cf: CFrame, rng: Random)
+	streetTree(parent, cf, rng)
+end
+
+-- Большое дерево в парке или во дворе: k ~ 0.5..0.8 (высота ~ 35 * k).
+function Detailer.bigTree(parent: Instance, cf: CFrame, rng: Random, k: number)
+	local leafColor = Config.LeafColors[rng:NextInteger(1, #Config.LeafColors)]
+	local m = plant(parent, "Oak", Assets.Oak[rng:NextInteger(1, #Assets.Oak)], cf * yaw(rng:NextNumber(0, 360)), k, leafColor, rng)
+	local trunkH = 12 * k / 0.7
+	local trunk = Instance.new("Part")
+	trunk.Name = "TreeCollider"
+	trunk.Anchored = true
+	trunk.Transparency = 1
+	trunk.Size = Vector3.new(1.6, trunkH, 1.6)
+	trunk.CFrame = cf * CFrame.new(0, trunkH / 2, 0)
+	trunk.Parent = m
+	return m
+end
+
+-- Куст (сквозь него можно пройти).
+function Detailer.bush(parent: Instance, cf: CFrame, rng: Random, k: number?)
+	local leafColor = Config.LeafColors[rng:NextInteger(1, #Config.LeafColors)]
+	return plant(parent, "Bush", Assets.Bush[rng:NextInteger(1, #Assets.Bush)], cf * yaw(rng:NextNumber(0, 360)), k or rng:NextNumber(0.8, 1.2), leafColor, rng)
+end
+
+-- Фонарь: base — точка на земле, свет вылетает по armDir (1 = +Z локально, -1 = -Z).
+function Detailer.streetLamp(parent: Instance, base: CFrame, armDir: number)
+	return streetLamp(parent, base, armDir)
+end
+
 return Detailer
