@@ -91,8 +91,19 @@ local function ramp(parent: Instance, center: Vector3, riseDir: Vector3, w: numb
 end
 
 -- Место, где можно сесть: невидимая точка на сиденье, лицом по LookVector.
+-- Невидимое сиденье (Seat). Само по касанию не сажает (CanTouch = false): садятся по кнопке E,
+-- её добавляет World/Seats.luau.
 local function sitPoint(ctx, cf: CFrame)
-	local p = part(ctx.sitPoints, "SitPoint", Vector3.new(1.6, 0.2, 1.4), cf, C.white, Enum.Material.SmoothPlastic, false, { Transparency = 1 })
+	local p = Instance.new("Seat")
+	p.Name = "SitPoint"
+	p.Size = Vector3.new(1.6, 0.2, 1.4)
+	p.CFrame = cf
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Transparency = 1
+	p.Parent = ctx.sitPoints
 	CollectionService:AddTag(p, "SitPoint")
 	return p
 end
