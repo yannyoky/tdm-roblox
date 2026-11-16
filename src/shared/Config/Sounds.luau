@@ -21,14 +21,15 @@ Sounds.Shots = {
 Sounds.DefaultShot = Sounds.Shots.Rifle
 
 -- Перезарядка у каждого оружия своя; если оружия нет в списке — Sounds.Reload.
+-- Громкость заметно ниже выстрела: файлы перезарядки записаны громко, а звучат вплотную к игроку.
 Sounds.Reloads = {
-	Rifle = { Id = id(140069224599018), Volume = 0.7, Pitch = 1, Range = 40 }, -- Assault Rifle Reloading Audio
-	SMG = { Id = id(139644400203673), Volume = 0.7, Pitch = 1, Range = 40 }, -- reload_smg
-	LMG = { Id = id(140069224599018), Volume = 0.75, Pitch = 0.85, Range = 40 },
-	Shotgun = { Id = id(139827026287805), Volume = 0.7, Pitch = 1, Range = 40 }, -- shotgun_reload
-	Sniper = { Id = id(4649193317), Volume = 0.7, Pitch = 1, Range = 40 }, -- sniper reload
-	Pistol = { Id = id(5445945972), Volume = 0.7, Pitch = 1, Range = 40 }, -- Glock Reload
-	Revolver = { Id = id(5445945972), Volume = 0.7, Pitch = 0.9, Range = 40 },
+	Rifle = { Id = id(140069224599018), Volume = 0.25, Pitch = 1, Range = 40 }, -- Assault Rifle Reloading Audio
+	SMG = { Id = id(139644400203673), Volume = 0.25, Pitch = 1, Range = 40 }, -- reload_smg
+	LMG = { Id = id(140069224599018), Volume = 0.25, Pitch = 0.85, Range = 40 },
+	Shotgun = { Id = id(139827026287805), Volume = 0.25, Pitch = 1, Range = 40 }, -- shotgun_reload
+	Sniper = { Id = id(4649193317), Volume = 0.25, Pitch = 1, Range = 40 }, -- sniper reload
+	Pistol = { Id = id(5445945972), Volume = 0.25, Pitch = 1, Range = 40 }, -- Glock Reload
+	Revolver = { Id = id(5445945972), Volume = 0.25, Pitch = 0.9, Range = 40 },
 }
 Sounds.Reload = Sounds.Reloads.Rifle
 
