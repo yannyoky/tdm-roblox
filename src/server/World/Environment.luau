@@ -144,6 +144,7 @@ local function applyLight()
 	local night = clock >= DecorConfig.Lamps.NightFrom or clock <= DecorConfig.Lamps.NightTo or w.Rain > 0.8
 	if night ~= lampsNight then
 		lampsNight = night
+		ReplicatedStorage:SetAttribute("Night", night) -- фары машин (client/VehicleLights)
 		Detailer.updateLamps(if night then 0 else 12)
 	end
 	-- Окна загораются только в темноте (не днём в ливень).
@@ -168,6 +169,9 @@ local function onMap(map: Instance?)
 	else
 		ReplicatedStorage:SetAttribute("Weather", "Clear")
 		ReplicatedStorage:SetAttribute("RainIntensity", 0)
+		-- Свет карты фиксированный (Ambience): ночь, если время вечернее.
+		local t = Lighting.ClockTime
+		ReplicatedStorage:SetAttribute("Night", t >= DecorConfig.Lamps.NightFrom or t <= DecorConfig.Lamps.NightTo)
 	end
 end
 

@@ -232,20 +232,55 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 		end
 	end
 
-	-- Фары: свет на капоте (сам меш их уже рисует).
+	-- Фары, габариты, стоп-сигналы и задний ход. Включает и выключает их клиент
+	-- (src/client/VehicleLights.luau): фары ночью и в ливень, стопы при торможении, белые при заднем ходе.
 	if geo.lights then
-		for _, x in { -geo.lights.x, geo.lights.x } do
-			local holder = part({ Name = "Headlight", Size = Vector3.new(0.2, 0.2, 0.2), CFrame = at(x, geo.lights.h, geo.lights.z) })
+		local L = geo.lights
+		local rearZ = geo.size.Z / 2 + 0.02
+		for _, x in { -L.x, L.x } do
+			local holder = part({ Name = "Headlight", Size = Vector3.new(0.2, 0.2, 0.2), CFrame = at(x, L.h, L.z) })
 			ghost(holder)
 			local light = Instance.new("SpotLight")
 			light.Face = Enum.NormalId.Front
-			light.Range = 40
-			light.Angle = 60
-			light.Brightness = 2
+			light.Range = 60
+			light.Angle = 55
+			light.Brightness = 3
 			light.Color = Color3.fromRGB(255, 245, 220)
+			light.Shadows = true
+			light.Enabled = false
 			light.Parent = holder
 			holder.Parent = model
 			weld(chassis, holder)
+			-- Стекло фары: светится, когда фары включены.
+			local glow = part({ Name = "HeadlightGlow", Size = Vector3.new(1.1, 0.45, 0.06), CFrame = at(x, L.h, L.z - 0.04), Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.Neon })
+			ghost(glow)
+			glow.Transparency = 1
+			glow.Parent = model
+			weld(chassis, glow)
+			-- Задний фонарь (габарит + стоп) и фонарь заднего хода.
+			local tail = part({ Name = "TailLight", Size = Vector3.new(1.1, 0.42, 0.06), CFrame = at(x, L.h + 0.35, rearZ), Color = Color3.fromRGB(255, 30, 25), Material = Enum.Material.Neon })
+			ghost(tail)
+			tail.Transparency = 1
+			local red = Instance.new("PointLight")
+			red.Color = Color3.fromRGB(255, 40, 30)
+			red.Range = 10
+			red.Brightness = 1.5
+			red.Enabled = false
+			red.Parent = tail
+			tail.Parent = model
+			weld(chassis, tail)
+			local rev = part({ Name = "ReverseLight", Size = Vector3.new(0.45, 0.3, 0.06), CFrame = at(x - math.sign(x) * 0.9, L.h + 0.35, rearZ), Color = Color3.fromRGB(255, 255, 250), Material = Enum.Material.Neon })
+			ghost(rev)
+			rev.Transparency = 1
+			local white = Instance.new("SpotLight")
+			white.Face = Enum.NormalId.Back
+			white.Range = 16
+			white.Angle = 70
+			white.Brightness = 1.5
+			white.Enabled = false
+			white.Parent = rev
+			rev.Parent = model
+			weld(chassis, rev)
 		end
 	end
 

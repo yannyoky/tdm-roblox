@@ -6,6 +6,8 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
+local PlayerSettings = require(script.Parent.PlayerSettings)
+
 local player = Players.LocalPlayer
 
 local VehicleController = {}
@@ -113,6 +115,8 @@ local lastDriven: Model? = nil
 local YAW_RESPONSE = 9 -- как быстро машина выходит на нужную скорость разворота (1/с)
 local HANDBRAKE_GRIP = 0.9
 local steerSmooth = 0
+local throttleSmooth = 0
+local fovChanged = false
 local lastDt = 1 / 60
 local handbrakeHeld = false
 
@@ -153,6 +157,14 @@ local function drive(model: Model, seat: VehicleSeat)
 	lastDriven = model
 	groundParams.FilterDescendantsInstances = { model, player.Character :: Instance }
 	local throttle, steer = seat.ThrottleFloat, seat.SteerFloat
+	-- Плавный газ: педаль «утапливается» за ~0.3 с, отпускается быстрее (нет рывка с места).
+	local target = throttle
+	local tRate = if math.abs(target) > math.abs(throttleSmooth) and math.sign(target) == math.sign(throttleSmooth) then 3.5 else 8
+	throttleSmooth += math.clamp(target - throttleSmooth, -tRate * lastDt, tRate * lastDt)
+	if math.abs(target) > 0.05 and math.sign(target) ~= math.sign(throttleSmooth) then
+		throttleSmooth = target * 0.15 -- смена педали: сразу начинаем с малого газа в нужную сторону
+	end
+	throttle = throttleSmooth
 	local forward = root.AssemblyLinearVelocity:Dot(root.CFrame.LookVector)
 
 	-- braking = true: тормозят все четыре колеса; иначе крутят только ведущие (Drive: RWD/FWD/AWD).
@@ -278,8 +290,23 @@ local function step(dt: number)
 
 	baseWarning.Visible = char ~= nil and char:GetAttribute("InEnemyBase") == true
 
+	-- Камера в машине: на скорости поле зрения шире (ощущение скорости), после выхода — как было.
+	local camera = workspace.CurrentCamera
+	local baseFov = PlayerSettings.get("FieldOfView") or 70
+	if model and model.PrimaryPart then
+		local speed = model.PrimaryPart.AssemblyLinearVelocity.Magnitude
+		local k = math.clamp(speed / (model:GetAttribute("MaxSpeed") or 80), 0, 1)
+		local fov = baseFov + 14 * k * k
+		camera.FieldOfView += (fov - camera.FieldOfView) * math.min(1, dt * 3)
+		fovChanged = true
+	elseif fovChanged then
+		fovChanged = false
+		camera.FieldOfView = baseFov
+	end
+
 	if not model then
 		steerSmooth = 0
+		throttleSmooth = 0
 		releaseAssist()
 		panel.Visible = false
 		return
