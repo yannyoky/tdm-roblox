@@ -268,10 +268,10 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 	local teamColor = TeamsConfig.List[teamKey] and TeamsConfig.List[teamKey].Color or cfg.Accent
 	local stripe = part({
 		Name = "TeamStripe",
-		Size = Vector3.new(roof.w * 0.45, 0.1, roof.len * 0.7),
-		CFrame = at(0, roof.h + 0.05, roof.z),
+		Size = Vector3.new(roof.w * 0.3, 0.06, roof.len * 0.7),
+		CFrame = at(0, roof.h + 0.03, roof.z),
 		Color = teamColor,
-		Material = Enum.Material.Neon,
+		Material = Enum.Material.SmoothPlastic, -- краска, а не светящаяся плита
 	})
 	ghost(stripe)
 	stripe.Transparency = 0

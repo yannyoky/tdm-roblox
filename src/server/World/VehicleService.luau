@@ -5,6 +5,8 @@
 --   VehicleService.fromPart(part) -> Model?          -- машина, которой принадлежит деталь
 --   VehicleService.isInVehicle(character) -> boolean
 --   VehicleService.resetFleet()                      -- все машины заново на площадки (новый раунд/карта)
+--   VehicleService.spawnPersonal(player, typeId, cf) -- личная машина (вызов на парковке «Города»)
+--   VehicleService.repair(model, hp) -> boolean       -- ремонт (заправки)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -466,6 +468,38 @@ local function spawnAt(record: PadRecord)
 	record.emptySince = os.clock()
 end
 
+-- Личная машина игрока (вызов на парковке в режиме «Город»): без площадки, не пересоздаётся.
+-- Прежняя личная машина игрока убирается. Пропадает со сменой карты (resetFleet) и уходом игрока.
+function VehicleService.spawnPersonal(player: Player, typeId: string, groundCf: CFrame): Model?
+	local team = teamOf(player)
+	if not team or not VehiclesConfig.Types[typeId] then
+		return nil
+	end
+	for _, m in folder:GetChildren() do
+		if m:GetAttribute("Owner") == player.UserId then
+			m:Destroy()
+		end
+	end
+	local model = VehicleBuilder.build(typeId, groundCf, team)
+	model:SetAttribute("Owner", player.UserId)
+	setupVehicle(model, nil)
+	model.Parent = folder
+	return model
+end
+
+-- Ремонт (заправка): возвращает true, если машина была повреждена.
+function VehicleService.repair(model: Model, amount: number): boolean
+	if model:GetAttribute("Destroyed") then
+		return false
+	end
+	local hp, max = model:GetAttribute("Health") or 0, model:GetAttribute("MaxHealth") or 0
+	if hp >= max then
+		return false
+	end
+	model:SetAttribute("Health", math.min(max, hp + amount))
+	return true
+end
+
 function VehicleService.resetFleet()
 	folder:ClearAllChildren()
 	table.clear(pads)
@@ -550,6 +584,13 @@ function VehicleService.init()
 
 	MapService.Changed:Connect(function()
 		VehicleService.resetFleet()
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		for _, m in folder:GetChildren() do
+			if m:GetAttribute("Owner") == player.UserId then
+				m:Destroy()
+			end
+		end
 	end)
 
 	local acc = 0
