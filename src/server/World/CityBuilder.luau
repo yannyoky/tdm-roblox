@@ -899,7 +899,10 @@ optimize = function(root: Instance)
 			d.CanTouch = false
 			if d.CastShadow then
 				local s = d.Size
-				local thin = math.min(s.X, s.Y, s.Z) < 0.35 and math.max(s.X, s.Y, s.Z) < 16
+				-- Деталь-носитель меша (деревья, кусты) крошечная, а видимая форма большая — её не трогаем.
+				local thin = math.min(s.X, s.Y, s.Z) < 0.35
+					and math.max(s.X, s.Y, s.Z) < 16
+					and d:FindFirstChildOfClass("SpecialMesh") == nil
 				if NO_SHADOW[d.Name] or thin or d.Transparency >= 0.95 or d.Material == Enum.Material.Neon then
 					d.CastShadow = false
 				end
