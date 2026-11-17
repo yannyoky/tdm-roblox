@@ -102,7 +102,7 @@ City.Pedestrians = {
 	-- Что делать на углу квартала (веса).
 	Choice = { Walk = 0.55, Cross = 0.3, Sit = 0.15 },
 	SitTime = { 12, 35 },
-	TalkChance = 0.3, -- при встрече с другим прохожим
+	TalkChance = 0.5, -- при встрече с другим прохожим
 	TalkTime = { 5, 10 },
 	TalkCooldown = 45,
 	CrossMinWalk = 6, -- переходить, только если «идите» горит ещё столько секунд

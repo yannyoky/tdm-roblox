@@ -384,7 +384,7 @@ local function canGo(p: Ped): boolean
 end
 
 local function sitDown(p: Ped): boolean
-	local seat = freeSeatNear(p.root.Position, 70)
+	local seat = freeSeatNear(p.root.Position, 180)
 	if not seat then
 		return false
 	end
