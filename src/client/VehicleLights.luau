@@ -63,7 +63,7 @@ local function apply(l: Lamps, heads: boolean, brake: boolean, reverse: boolean)
 	end
 	l.state = key
 	setLight(l.head, 1, heads)
-	setLight(l.glow, if heads then 0.05 else 1, false)
+	setLight(l.glow, if heads then 0.25 else 1, false) -- не 0: иначе свечение заливает весь бампер
 	-- Габарит тусклый, стоп яркий (с подсветкой асфальта).
 	setLight(l.tail, if brake then 0 elseif heads then 0.45 else 1, brake)
 	setLight(l.reverse, if reverse then 0 else 1, reverse)

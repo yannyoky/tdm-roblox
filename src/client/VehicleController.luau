@@ -220,7 +220,9 @@ local function drive(model: Model, seat: VehicleSeat)
 		local yawTorque = 0
 		if down then -- в воздухе не крутим
 			-- Трение колёс сильно мешает развороту, поэтому момент большой.
-			local gain = if handbrake and steer == 0 then 4 else 70
+			-- За один кадр момент должен исправлять не больше трети ошибки, иначе руль «перелетает»
+			-- и машину раскачивает по рысканию (±4 рад/с) — и на месте, и с уводом в сторону.
+			local gain = math.min(if handbrake and steer == 0 then 4 else 70, 0.35 / math.max(dt, 1 / 240))
 			yawTorque = math.clamp(inertia * gain * (desired - current), -maxTorque, maxTorque)
 			-- И немного доводим скорость разворота напрямую (физику машины считает компьютер водителя).
 			local blend = math.min(1, (if handbrake and steer == 0 then 1.5 else YAW_RESPONSE) * dt)

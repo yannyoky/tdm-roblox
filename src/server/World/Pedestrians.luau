@@ -185,7 +185,8 @@ local function animate(p: Ped)
 	end
 	local track = p.tracks[want]
 	if track and want == "walk" then
-		track:AdjustSpeed(math.clamp(speed / 14.5 * 1.6, 0.4, 1.2))
+		-- Шаг анимации ходьбы рассчитан примерно на 7 студ/с: так ноги не «скользят».
+		track:AdjustSpeed(math.clamp(speed / 7, 0.6, 1.4))
 	elseif track and want == "run" then
 		track:AdjustSpeed(math.clamp(speed / 18, 0.6, 1.3))
 	end
