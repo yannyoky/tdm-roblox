@@ -29,12 +29,16 @@ end
 
 local function clearPrompts()
 	for _, p in prompts do
+		local holder = p.Parent
 		p:Destroy()
+		if holder and holder:IsA("Attachment") and holder:GetAttribute("CityPrompt") then
+			holder:Destroy()
+		end
 	end
 	table.clear(prompts)
 end
 
-local function addPrompt(parent: BasePart, action: string, object: string, key: Enum.KeyCode, distance: number): ProximityPrompt
+local function addPrompt(parent: Instance, action: string, object: string, key: Enum.KeyCode, distance: number): ProximityPrompt
 	local p = Instance.new("ProximityPrompt")
 	p.ActionText = action
 	p.ObjectText = object
@@ -47,7 +51,7 @@ local function addPrompt(parent: BasePart, action: string, object: string, key: 
 	return p
 end
 
--- Свободно ли место: ни машин, ни людей.
+-- Свободно ли место: нет машин.
 local function spotFree(spot: BasePart): boolean
 	local vehicles = workspace:FindFirstChild("Vehicles")
 	local list: { Instance } = {}
@@ -58,11 +62,7 @@ local function spotFree(spot: BasePart): boolean
 	if traffic then
 		table.insert(list, traffic)
 	end
-	for _, pl in Players:GetPlayers() do
-		if pl.Character then
-			table.insert(list, pl.Character)
-		end
-	end
+	-- Людей не считаем: вызывающий сам стоит у места, машина появится рядом с ним.
 	overlap.FilterType = Enum.RaycastFilterType.Include
 	overlap.FilterDescendantsInstances = list
 	local hits = workspace:GetPartBoundsInBox(spot.CFrame * CFrame.new(0, 3, 0), Vector3.new(7.5, 5, 16), overlap)
@@ -110,7 +110,14 @@ local function setupLife(map: Instance?)
 	if spots then
 		for _, spot in spots:GetChildren() do
 			if spot:IsA("BasePart") then
-				local p = addPrompt(spot, "Вызвать машину", "Парковка", Enum.KeyCode.G, 7)
+				-- Места — невидимые плашки с CanQuery = false (пули сквозь них), а на такой детали
+				-- подсказка не показывается. Поэтому точка подсказки — в Terrain, на высоте груди.
+				local at = Instance.new("Attachment")
+				at.Name = "ParkingPrompt"
+				at:SetAttribute("CityPrompt", true)
+				at.Position = spot.Position + Vector3.new(0, 3, 0) -- Terrain стоит в начале координат
+				at.Parent = workspace.Terrain
+				local p = addPrompt(at, "Вызвать машину", "Парковка", Enum.KeyCode.G, 10)
 				p.HoldDuration = 0.6
 				p.Triggered:Connect(function(player)
 					callCar(player, spot)
