@@ -24,6 +24,7 @@ local Props = require(script.Parent.Props)
 local Detailer = require(script.Parent.Detailer)
 
 local CityBuilder = {}
+local optimize: (Instance) -> ()
 
 local rgb = Color3.fromRGB
 local part = Props.part
@@ -866,6 +867,50 @@ end
 --   map, geo       -- папки карты
 --   place(e)       -- построить элемент карты (block/shell/...) с отделкой
 --   buildBase(teamKey, pos: Vector3, gateDir: Vector3)
+------------------------------------------------------------------------
+-- Оптимизация после сборки (этап 6). Днём узкое место — тени солнца: их отбрасывали ~12 500
+-- деталей, большая часть — мелочь, чья тень не видна (рамы и стёкла окон, подоконники, плафоны
+-- фонарей, козырьки светофоров, карнизы). Им тени выключаем; тени зданий, деревьев, столбов
+-- и крупных предметов остаются. Касания (Touched) у карты никто не слушает — выключаем всем.
+local NO_SHADOW = {
+	WindowSill = true,
+	WindowFrame = true,
+	WindowMullion = true,
+	WindowGlass = true,
+	TowerWindows = true,
+	LitWindows = true,
+	FloorBand = true,
+	Cornice = true,
+	Plinth = true,
+	Pipe = true,
+	LampGlass = true,
+	LampHead = true,
+	LampArm = true,
+	LampBase = true,
+	Lamp = true,
+	PedLamp = true,
+	SignalVisor = true,
+	Marking = true,
+}
+
+optimize = function(root: Instance)
+	for _, d in root:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.CanTouch = false
+			if d.CastShadow then
+				local s = d.Size
+				-- Деталь-носитель меша (деревья, кусты) крошечная, а видимая форма большая — её не трогаем.
+				local thin = math.min(s.X, s.Y, s.Z) < 0.35
+					and math.max(s.X, s.Y, s.Z) < 16
+					and d:FindFirstChildOfClass("SpecialMesh") == nil
+				if NO_SHADOW[d.Name] or thin or d.Transparency >= 0.95 or d.Material == Enum.Material.Neon then
+					d.CastShadow = false
+				end
+			end
+		end
+	end
+end
+
 function CityBuilder.build(ctx)
 	local rng = Random.new(Config.Seed)
 	local city = folder(ctx.map, "City")
@@ -919,6 +964,7 @@ function CityBuilder.build(ctx)
 	markings.Parent = ctx.geo
 	street.Parent = ctx.geo
 	nightDetails(ctx.geo, rng)
+	optimize(ctx.map)
 	return city
 end
 
