@@ -330,7 +330,9 @@ local function step(dt: number)
 		end
 		drive(model, seat)
 		updateSirens(model, dt)
-		hintLabel.Text = "W/S — газ/тормоз, A/D — руль, Shift — ручник, прыжок — выйти"
+		hintLabel.Text = if model:GetAttribute("Repairing")
+			then "Заправка: машину чинят — постойте пару секунд"
+			else "W/S — газ/тормоз, A/D — руль, Shift — ручник, прыжок — выйти"
 	else
 		releaseAssist()
 		hintLabel.Text = "Прыжок — выйти"

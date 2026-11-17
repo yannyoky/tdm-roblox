@@ -23,6 +23,7 @@ local Graphics = require(script:WaitForChild("Graphics"))
 local Weather = require(script:WaitForChild("Weather"))
 local Locomotion = require(script:WaitForChild("Locomotion"))
 local VehicleLights = require(script:WaitForChild("VehicleLights"))
+local CityInteract = require(script:WaitForChild("CityInteract"))
 
 -- Настройки и система окон нужны остальным модулям, поэтому запускаются первыми.
 PlayerSettings.init()
@@ -52,3 +53,4 @@ task.spawn(Graphics.init)
 task.spawn(Weather.init)
 task.spawn(Locomotion.init)
 task.spawn(VehicleLights.init)
+task.spawn(CityInteract.init)
