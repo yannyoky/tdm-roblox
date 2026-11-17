@@ -112,6 +112,24 @@ function TrafficLights.get(i: number, j: number, axis: string): string
 	return if axis == "NS" then s.ns else s.ew
 end
 
+-- Пешеходный переход через улицу оси axis у перекрёстка (i, j).
+-- Возвращает nil, если светофора нет, иначе сколько секунд ещё горит «идите» (0 — красный человечек).
+function TrafficLights.walkLeft(i: number, j: number, axis: string): number?
+	local s = byKey[string.format("I_%d_%d", i, j)]
+	if not s then
+		return nil
+	end
+	local c = Config.Signals
+	local half = c.Green + c.Yellow + c.AllRed
+	local p = (workspace:GetServerTimeNow() + s.offset) % (half * 2)
+	-- Через улицу NS идут, пока зелёный у EW (и наоборот).
+	local from = if axis == "NS" then half else 0
+	if p >= from and p < from + c.Green then
+		return from + c.Green - p
+	end
+	return 0
+end
+
 function TrafficLights.init(mapChanged: RBXScriptSignal)
 	mapChanged:Connect(TrafficLights.attach)
 	local map = workspace:FindFirstChild("Map")

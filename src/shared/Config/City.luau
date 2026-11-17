@@ -72,6 +72,54 @@ City.Signals = {
 }
 
 ------------------------------------------------------------------------
+-- Трафик (только в режиме «Город», атрибут CityLife). Машины едут по полосам, стоят на красный,
+-- пропускают встречных при левом повороте, тормозят перед людьми и машинами, перестраиваются,
+-- чтобы объехать стоящее препятствие. Код — src/server/World/Traffic.luau.
+City.Traffic = {
+	Cars = 18,
+	Types = { "Bandits_Sedan", "Bandits_Sedan", "Bandits_Van", "Bandits_Pickup", "Gov_SUV" },
+	Mass = 350, -- чем тяжелее, тем труднее её столкнуть
+	Speed = 38, -- студ/с на прямой (≈ км/ч)
+	TurnSpeed = 15, -- в повороте
+	Accel = 11,
+	Decel = 24,
+	LaneChangeSpeed = 6, -- студ/с вбок при перестроении
+	SpawnAwayFromPlayers = 70, -- не появляются ближе к игрокам
+	TurnChance = { Straight = 0.6, Left = 0.2, Right = 0.2 },
+}
+
+------------------------------------------------------------------------
+-- Прохожие (только в режиме «Город», атрибут CityLife). Ходят по тротуарам вокруг кварталов
+-- (маршрут строит PathfindingService), переходят улицу по зебре на зелёного человечка,
+-- садятся на скамейки, останавливаются поболтать, уступают дорогу, отскакивают от машин,
+-- разбегаются от выстрелов. Код — src/server/World/Pedestrians.luau.
+City.Pedestrians = {
+	Count = 22,
+	WalkSpeed = { 5.5, 8 }, -- у каждого своя походка
+	RunSpeed = 17, -- когда напуган
+	WalkLine = 7.5, -- от бордюра до линии, по которой идут (тротуар 12)
+	SpawnAwayFromPlayers = 60,
+	-- Что делать на углу квартала (веса).
+	Choice = { Walk = 0.55, Cross = 0.3, Sit = 0.15 },
+	SitTime = { 12, 35 },
+	TalkChance = 0.5, -- при встрече с другим прохожим
+	TalkTime = { 5, 10 },
+	TalkCooldown = 45,
+	CrossMinWalk = 6, -- переходить, только если «идите» горит ещё столько секунд
+	PanicRadius = 90, -- слышат выстрел
+	PanicTime = 12,
+	DodgeDistance = 14, -- отскок от машины, едущей прямо на него
+	-- Одежда — из гардероба Config/Appearance (Bandits), только повседневные вещи.
+	Wear = {
+		Top = { "tee_black", "tee_gray", "knit", "leather_brown", "gray_hood", "puffer", "hoodie" },
+		Bottom = { "jeans", "jeans_black", "cargo_brown", "sweats_gray", "baggy" },
+		Shoes = { "sneakers_white", "sneakers_gray", "running", "canvas", "work_tan" },
+		Hat = { "cap", "beanie" },
+		HatChance = 0.25,
+	},
+}
+
+------------------------------------------------------------------------
 -- Смена дня и ночи. Работает на картах с DayNight = true (город).
 
 City.DayNight = {

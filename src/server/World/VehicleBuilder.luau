@@ -102,6 +102,70 @@ local function dressWheel(model: Model, wheel: BasePart, name: string, r: number
 	end
 end
 
+-- Фары, габариты, стоп-сигналы и задний ход. Включает и выключает их клиент
+-- (src/client/VehicleLights.luau): фары ночью и в ливень, стопы при торможении, белые при заднем ходе.
+local function addLights(model: Model, geo, at: (number, number, number) -> CFrame, chassis: BasePart)
+	if geo.lights then
+		local L = geo.lights
+		local rearZ = geo.size.Z / 2 - 0.05
+		for _, side in { -1, 1 } do
+			local x = side * L.x
+			local holder = part({ Name = "Headlight", Size = Vector3.new(0.2, 0.2, 0.2), CFrame = at(x, L.h, L.z) })
+			ghost(holder)
+			local light = Instance.new("SpotLight")
+			light.Face = Enum.NormalId.Front
+			light.Range = 60
+			light.Angle = 55
+			light.Brightness = 2
+			light.Color = Color3.fromRGB(255, 245, 220)
+			light.Shadows = true
+			light.Enabled = false
+			light.Parent = holder
+			holder.Parent = model
+			weld(chassis, holder)
+			-- Стекло фары: светится, когда фары включены.
+			local hd = L.head or {}
+			local glow = part({ Name = "HeadlightGlow", Size = Vector3.new(hd.w or 0.8, hd.ht or 0.32, 0.7), CFrame = at(side * (hd.x or L.x * 0.9), hd.h or L.h, hd.z or L.z + 0.3), Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.Neon })
+			ghost(glow)
+			glow.Transparency = 1
+			glow.CastShadow = false
+			glow.Parent = model
+			weld(chassis, glow)
+			-- Задний фонарь (габарит + стоп) и фонарь заднего хода.
+			local tl = L.tail or {}
+			local tx, th, tz = side * (tl.x or L.x * 0.9), tl.h or L.h + 0.35, tl.z or rearZ - 0.4
+			local tw, tht = tl.w or 0.8, tl.ht or 0.3
+			local tail = part({ Name = "TailLight", Size = Vector3.new(tw, tht, 0.7), CFrame = at(tx, th, tz), Color = Color3.fromRGB(255, 30, 25), Material = Enum.Material.Neon })
+			ghost(tail)
+			tail.Transparency = 1
+			tail.CastShadow = false
+			local red = Instance.new("PointLight")
+			red.Color = Color3.fromRGB(255, 40, 30)
+			red.Range = 6
+			red.Brightness = 0.6
+			red.Enabled = false
+			red.Parent = tail
+			tail.Parent = model
+			weld(chassis, tail)
+			-- Задний ход — рядом с фонарём ближе к середине (у вертикального фонаря — под ним).
+			local rx, rh = if tht > tw then tx else tx - side * (tw / 2 + 0.25), if tht > tw then th - tht / 2 - 0.2 else th
+			local rev = part({ Name = "ReverseLight", Size = Vector3.new(0.35, 0.26, 0.7), CFrame = at(rx, rh, tz), Color = Color3.fromRGB(255, 255, 250), Material = Enum.Material.Neon })
+			ghost(rev)
+			rev.Transparency = 1
+			rev.CastShadow = false
+			local white = Instance.new("SpotLight")
+			white.Face = Enum.NormalId.Back
+			white.Range = 16
+			white.Angle = 70
+			white.Brightness = 0.8
+			white.Enabled = false
+			white.Parent = rev
+			rev.Parent = model
+			weld(chassis, rev)
+		end
+	end
+end
+
 function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string): Model
 	local cfg = VehiclesConfig.Types[typeId]
 	assert(cfg, "Нет машины " .. tostring(typeId))
@@ -232,22 +296,7 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 		end
 	end
 
-	-- Фары: свет на капоте (сам меш их уже рисует).
-	if geo.lights then
-		for _, x in { -geo.lights.x, geo.lights.x } do
-			local holder = part({ Name = "Headlight", Size = Vector3.new(0.2, 0.2, 0.2), CFrame = at(x, geo.lights.h, geo.lights.z) })
-			ghost(holder)
-			local light = Instance.new("SpotLight")
-			light.Face = Enum.NormalId.Front
-			light.Range = 40
-			light.Angle = 60
-			light.Brightness = 2
-			light.Color = Color3.fromRGB(255, 245, 220)
-			light.Parent = holder
-			holder.Parent = model
-			weld(chassis, holder)
-		end
-	end
+	addLights(model, geo, at, chassis)
 
 	-- Сиденья, двери и места выхода. Первое сиденье — водительское.
 	local doors = Instance.new("Folder")
@@ -422,6 +471,134 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 	assist.Torque = Vector3.zero
 	assist.Parent = drive
 
+	return model
+end
+
+-- Машина городского трафика (режим «Город», World/Traffic.luau): тот же кузов, коробки и свет,
+-- но без подвески и сидений. Её ведёт сервер: AlignPosition/AlignOrientation на шасси тянут машину
+-- по полосе, колёса крутятся моторами по скорости. Физику считает сервер, поэтому у всех она
+-- плавная, и машина толкается при столкновениях (масса Mass).
+function VehicleBuilder.buildTraffic(typeId: string, groundCf: CFrame, mass: number): Model
+	local geo = VehicleModels[typeId]
+	assert(geo, "Нет модели машины " .. tostring(typeId))
+	local wh = geo.wheels
+	local R, WW = wh.r, wh.w
+	local wheelbase = wh.rear - wh.front
+	local midZ = (wh.front + wh.rear) / 2
+	local function at(x: number, h: number, z: number): CFrame
+		return groundCf * CFrame.new(x, h, z)
+	end
+
+	local model = Instance.new("Model")
+	model.Name = "Traffic_" .. typeId
+	model:SetAttribute("IsTraffic", true)
+	model:SetAttribute("AIDriver", true)
+	model:SetAttribute("VehicleType", typeId)
+	model:SetAttribute("Length", geo.size.Z)
+	model:SetAttribute("Width", geo.size.X)
+	model:SetAttribute("WheelRadius", R)
+
+	-- Шасси в центре габарита на высоте осей (ровно над точкой groundCf).
+	local chassisSize = Vector3.new(math.max(1, wh.x * 2 - WW - 1), 0.6, math.max(2, wheelbase - R * 2))
+	local chassis = part({
+		Name = "Chassis",
+		Size = chassisSize,
+		CFrame = at(0, R, 0),
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CustomPhysicalProperties = PhysicalProperties.new(math.clamp(mass / (chassisSize.X * chassisSize.Y * chassisSize.Z), 0.01, 100), 0.3, 0, 1, 1),
+	})
+	chassis.Parent = model
+	model.PrimaryPart = chassis
+
+	for i, box in geo.hull do
+		local lo, hi = box.min, box.max
+		local hull = part({
+			Name = (if box.glass then "Glass_" else "Hull_") .. i,
+			Size = hi - lo,
+			CFrame = at((lo.X + hi.X) / 2, (lo.Y + hi.Y) / 2, (lo.Z + hi.Z) / 2),
+			Transparency = 1,
+			Massless = true,
+			CanQuery = true,
+			CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.35, 0.1, 1, 1),
+		})
+		pcall(function()
+			hull.CollisionGroup = "VehicleHull"
+		end)
+		hull.Parent = model
+		weld(chassis, hull)
+	end
+
+	local bodyCf = groundCf * CFrame.new(0, geo.size.Y / 2, 0)
+	for i, piece in geo.parts do
+		local p = part({
+			Name = "BodyMesh" .. i,
+			Size = Vector3.new(0.4, 0.4, 0.4),
+			CFrame = bodyCf * CFrame.new(piece.pos) * CFrame.Angles(0, math.rad(piece.yaw or 0), 0),
+		})
+		ghost(p)
+		p.Transparency = 0
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.FileMesh
+		mesh.MeshId = "rbxassetid://" .. piece.mesh
+		if piece.tex then
+			mesh.TextureId = "rbxassetid://" .. piece.tex
+		end
+		mesh.Scale = piece.scale
+		mesh.Parent = p
+		p.Parent = model
+		weld(chassis, p)
+	end
+
+	addLights(model, geo, at, chassis)
+
+	-- Колёса: крутятся моторами (скорость выставляет Traffic), в столкновениях не участвуют.
+	local drive = Instance.new("Folder")
+	drive.Name = "Drive"
+	drive.Parent = model
+	for _, w in { { "FL", -1, wh.front }, { "FR", 1, wh.front }, { "RL", -1, wh.rear }, { "RR", 1, wh.rear } } do
+		local name, side, z = w[1], w[2], w[3]
+		local axleCf = at(side * wh.x, R, z)
+		local wheel = part({
+			Name = "Wheel_" .. name,
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(WW, R * 2, R * 2),
+			CFrame = axleCf,
+		})
+		ghost(wheel)
+		wheel.Parent = model
+		dressWheel(model, wheel, name, R, WW, side)
+		local motor = Instance.new("HingeConstraint")
+		motor.Name = "Motor_" .. name
+		motor.Attachment0 = attachment(chassis, "Axle_" .. name, chassis.CFrame:ToObjectSpace(axleCf))
+		motor.Attachment1 = attachment(wheel, "Axle", CFrame.new())
+		motor.ActuatorType = Enum.ActuatorType.Motor
+		motor.MotorMaxTorque = 1e6
+		motor.AngularVelocity = 0
+		motor.Parent = drive
+	end
+
+	-- Ведение по полосе: цель ставит Traffic каждый кадр.
+	local center = attachment(chassis, "Center", CFrame.new())
+	local align = Instance.new("AlignPosition")
+	align.Name = "Follow"
+	align.Mode = Enum.PositionAlignmentMode.OneAttachment
+	align.Attachment0 = center
+	align.MaxForce = mass * 800
+	align.MaxVelocity = 120
+	align.Responsiveness = 40
+	align.Position = chassis.Position
+	align.Parent = chassis
+	local orient = Instance.new("AlignOrientation")
+	orient.Name = "Face"
+	orient.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	orient.Attachment0 = center
+	orient.MaxTorque = mass * 4000
+	orient.MaxAngularVelocity = 6
+	orient.Responsiveness = 30
+	orient.CFrame = chassis.CFrame.Rotation
+	orient.Parent = chassis
 	return model
 end
 

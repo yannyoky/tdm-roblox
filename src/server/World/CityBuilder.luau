@@ -202,8 +202,10 @@ local function buildIntersection(parent: Instance, i: number, j: number)
 	model:SetAttribute("I", i)
 	model:SetAttribute("J", j)
 	model:SetAttribute("Signalized", count >= 3)
-	model:SetAttribute("NS", "G")
-	model:SetAttribute("EW", "R")
+	if count >= 3 then -- на углах города светофоров нет: там нет и сигнала
+		model:SetAttribute("NS", "G")
+		model:SetAttribute("EW", "R")
+	end
 	for _, s in SIDES do
 		model:SetAttribute("Leg" .. s, legs[s])
 	end

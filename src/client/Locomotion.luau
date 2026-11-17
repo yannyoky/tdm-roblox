@@ -37,6 +37,13 @@ type State = {
 	landV: number,
 	fallSpeed: number,
 	active: boolean,
+	c0: CFrame, -- C0 сустава Root (в HumanoidRootPart)
+	lastRoot: CFrame,
+	lastSeat: Instance?,
+	seatAt: number,
+	trans: CFrame?, -- откуда «переезжает» тело при посадке/выходе (в системе HumanoidRootPart)
+	transT: number,
+	transCf: CFrame?, -- добавка этого кадра (её повторяем после физики, см. Heartbeat)
 }
 
 local states: { [Model]: State } = {}
@@ -96,17 +103,24 @@ local function build(char: Model): State?
 		landV = 0,
 		fallSpeed = 0,
 		active = false,
+		c0 = c0,
+		lastRoot = root.CFrame,
+		lastSeat = hum.SeatPart,
+		seatAt = -10,
+		trans = nil,
+		transT = 0,
+		transCf = nil,
 	}
 end
 
--- Добавка к позе анимации. Если анимация в этом кадре сустав не трогала, в Transform осталось
+-- Добавка к позе анимации: Transform = pre · (поза анимации) · extra. Если анимация в этом кадре сустав не трогала, в Transform осталось
 -- наше значение с прошлого кадра: тогда берём сохранённую позу анимации.
-local function bend(b: Bend, extra: CFrame)
+local function bend(b: Bend, extra: CFrame, pre: CFrame?)
 	local current: CFrame = b.inst.Transform
 	if b.last == nil or current ~= b.last then
 		b.base = current
 	end
-	local t = b.base * extra
+	local t = if pre then pre * b.base * extra else b.base * extra
 	b.inst.Transform = t
 	b.last = t
 end
@@ -124,8 +138,36 @@ end
 local function update(char: Model, st: State, dt: number, camPos: Vector3)
 	local hum, root = st.hum, st.root
 	if not root.Parent or hum.Health <= 0 then
+		st.transCf = nil
 		return
 	end
+	-- Посадка в машину и выход: сервер переносит персонажа рывком (на сиденье или к двери).
+	-- Тело не прыгает, а за ~0.5 с «переходит» из прежнего места, пригибаясь (как в дверной проём).
+	local now = os.clock()
+	if hum.SeatPart ~= st.lastSeat then
+		st.lastSeat = hum.SeatPart
+		st.seatAt = now
+	end
+	local moved = (root.Position - st.lastRoot.Position).Magnitude
+	if moved > 1.5 and moved < 30 and now - st.seatAt < 0.8 then
+		st.trans = root.CFrame:ToObjectSpace(st.lastRoot)
+		st.transT = 0
+	end
+	st.lastRoot = root.CFrame
+	local transCf: CFrame? = nil
+	if st.trans then
+		st.transT += dt / Config.EnterTime
+		if st.transT >= 1 then
+			st.trans = nil
+		else
+			local e = 1 - (1 - st.transT) ^ 3 -- плавное замедление в конце
+			local duck = math.sin(math.pi * st.transT)
+			local rel = CFrame.identity:Lerp(st.trans :: CFrame, 1 - e)
+			-- В системе сустава Root: C0⁻¹ · смещение · C0, плюс наклон и приседание посередине пути.
+			transCf = st.c0:Inverse() * rel * st.c0 * CFrame.new(0, -Config.EnterDuck * duck, 0) * CFrame.Angles(-0.35 * duck, 0, 0)
+		end
+	end
+
 	local vel = root.AssemblyLinearVelocity
 	local flat = Vector3.new(vel.X, 0, vel.Z)
 	local prevFlat = Vector3.new(st.prevVel.X, 0, st.prevVel.Z)
@@ -184,6 +226,14 @@ local function update(char: Model, st: State, dt: number, camPos: Vector3)
 	local far = (root.Position - camPos).Magnitude > Config.MaxDistance
 	local firstPerson = char == player.Character and head ~= nil and (head.Position - camPos).Magnitude < 1.6
 	local tiny = math.abs(st.pitch) < 0.002 and math.abs(st.roll) < 0.002 and math.abs(st.landX) < 0.005
+	-- Переход при посадке и выходе — и в виде от первого лица: камера в этот момент переключается,
+	-- и без этого добавка пропадала на 2–3 кадра (тело «прыгало»).
+	st.transCf = if transCf and not far then transCf else nil
+	if st.transCf then
+		st.active = true
+		bend(st.joints.Root, CFrame.identity, st.transCf)
+		return
+	end
 	if far or firstPerson or busy or tiny then
 		if st.active then
 			release(st)
@@ -235,6 +285,31 @@ function Locomotion.init()
 		bots[child :: Model] = nil
 		states[child :: Model] = nil
 	end)
+	-- Прохожие режима «Город» (World/Pedestrians) лежат в папке workspace.Pedestrians.
+	local function watchPeds(f: Instance)
+		if f.Name ~= "Pedestrians" or not f:IsA("Folder") then
+			return
+		end
+		f.ChildAdded:Connect(function(child)
+			if child:IsA("Model") then
+				bots[child] = true
+			end
+		end)
+		f.ChildRemoved:Connect(function(child)
+			bots[child :: Model] = nil
+			states[child :: Model] = nil
+		end)
+		for _, child in f:GetChildren() do
+			if child:IsA("Model") then
+				bots[child] = true
+			end
+		end
+	end
+	workspace.ChildAdded:Connect(watchPeds)
+	local pf = workspace:FindFirstChild("Pedestrians")
+	if pf then
+		watchPeds(pf)
+	end
 	for _, child in workspace:GetChildren() do
 		track(child)
 	end
@@ -266,6 +341,18 @@ function Locomotion.init()
 		for char in states do
 			if not char.Parent then
 				states[char] = nil
+			end
+		end
+	end)
+	-- Сидящий персонаж — часть сборки машины, и через кадр поза таза приходит заново
+	-- уже после Stepped: без повтора тело на кадр «прыгает» на сиденье. Повторяем добавку после физики.
+	RunService.Heartbeat:Connect(function()
+		for char, st in states do
+			if st.transCf and char.Parent then
+				local b = st.joints.Root
+				if b.inst.Transform ~= b.last then
+					bend(b, CFrame.identity, st.transCf)
+				end
 			end
 		end
 	end)
