@@ -108,14 +108,15 @@ local function addLights(model: Model, geo, at: (number, number, number) -> CFra
 	if geo.lights then
 		local L = geo.lights
 		local rearZ = geo.size.Z / 2 - 0.05
-		for _, x in { -L.x, L.x } do
+		for _, side in { -1, 1 } do
+			local x = side * L.x
 			local holder = part({ Name = "Headlight", Size = Vector3.new(0.2, 0.2, 0.2), CFrame = at(x, L.h, L.z) })
 			ghost(holder)
 			local light = Instance.new("SpotLight")
 			light.Face = Enum.NormalId.Front
 			light.Range = 60
 			light.Angle = 55
-			light.Brightness = 3
+			light.Brightness = 2
 			light.Color = Color3.fromRGB(255, 245, 220)
 			light.Shadows = true
 			light.Enabled = false
@@ -123,26 +124,32 @@ local function addLights(model: Model, geo, at: (number, number, number) -> CFra
 			holder.Parent = model
 			weld(chassis, holder)
 			-- Стекло фары: светится, когда фары включены.
-			local glow = part({ Name = "HeadlightGlow", Size = Vector3.new(0.8, 0.32, 0.7), CFrame = at(x * 0.9, L.h, L.z + 0.3), Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.Neon })
+			local hd = L.head or {}
+			local glow = part({ Name = "HeadlightGlow", Size = Vector3.new(hd.w or 0.8, hd.ht or 0.32, 0.7), CFrame = at(side * (hd.x or L.x * 0.9), hd.h or L.h, hd.z or L.z + 0.3), Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.Neon })
 			ghost(glow)
 			glow.Transparency = 1
 			glow.CastShadow = false
 			glow.Parent = model
 			weld(chassis, glow)
 			-- Задний фонарь (габарит + стоп) и фонарь заднего хода.
-			local tail = part({ Name = "TailLight", Size = Vector3.new(0.8, 0.3, 0.7), CFrame = at(x * 0.9, L.h + 0.35, rearZ - 0.4), Color = Color3.fromRGB(255, 30, 25), Material = Enum.Material.Neon })
+			local tl = L.tail or {}
+			local tx, th, tz = side * (tl.x or L.x * 0.9), tl.h or L.h + 0.35, tl.z or rearZ - 0.4
+			local tw, tht = tl.w or 0.8, tl.ht or 0.3
+			local tail = part({ Name = "TailLight", Size = Vector3.new(tw, tht, 0.7), CFrame = at(tx, th, tz), Color = Color3.fromRGB(255, 30, 25), Material = Enum.Material.Neon })
 			ghost(tail)
 			tail.Transparency = 1
 			tail.CastShadow = false
 			local red = Instance.new("PointLight")
 			red.Color = Color3.fromRGB(255, 40, 30)
-			red.Range = 10
-			red.Brightness = 1.5
+			red.Range = 6
+			red.Brightness = 0.6
 			red.Enabled = false
 			red.Parent = tail
 			tail.Parent = model
 			weld(chassis, tail)
-			local rev = part({ Name = "ReverseLight", Size = Vector3.new(0.35, 0.26, 0.7), CFrame = at(x * 0.9 - math.sign(x) * 0.65, L.h + 0.35, rearZ - 0.4), Color = Color3.fromRGB(255, 255, 250), Material = Enum.Material.Neon })
+			-- Задний ход — рядом с фонарём ближе к середине (у вертикального фонаря — под ним).
+			local rx, rh = if tht > tw then tx else tx - side * (tw / 2 + 0.25), if tht > tw then th - tht / 2 - 0.2 else th
+			local rev = part({ Name = "ReverseLight", Size = Vector3.new(0.35, 0.26, 0.7), CFrame = at(rx, rh, tz), Color = Color3.fromRGB(255, 255, 250), Material = Enum.Material.Neon })
 			ghost(rev)
 			rev.Transparency = 1
 			rev.CastShadow = false
@@ -150,7 +157,7 @@ local function addLights(model: Model, geo, at: (number, number, number) -> CFra
 			white.Face = Enum.NormalId.Back
 			white.Range = 16
 			white.Angle = 70
-			white.Brightness = 1.5
+			white.Brightness = 0.8
 			white.Enabled = false
 			white.Parent = rev
 			rev.Parent = model

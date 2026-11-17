@@ -226,7 +226,9 @@ local function update(char: Model, st: State, dt: number, camPos: Vector3)
 	local far = (root.Position - camPos).Magnitude > Config.MaxDistance
 	local firstPerson = char == player.Character and head ~= nil and (head.Position - camPos).Magnitude < 1.6
 	local tiny = math.abs(st.pitch) < 0.002 and math.abs(st.roll) < 0.002 and math.abs(st.landX) < 0.005
-	st.transCf = if transCf and not far and not firstPerson then transCf else nil
+	-- Переход при посадке и выходе — и в виде от первого лица: камера в этот момент переключается,
+	-- и без этого добавка пропадала на 2–3 кадра (тело «прыгало»).
+	st.transCf = if transCf and not far then transCf else nil
 	if st.transCf then
 		st.active = true
 		bend(st.joints.Root, CFrame.identity, st.transCf)
