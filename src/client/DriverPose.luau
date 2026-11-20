@@ -151,7 +151,10 @@ local function update(char: Model, hum: Humanoid, dt: number, camPos: Vector3)
 	for _, side in { "Left", "Right" } do
 		local arm = (if side == "Left" then s.left else s.right) :: ArmIK.Arm
 		local base = if side == "Left" then math.pi else 0
-		local grip = (wheel * ANG(0, 0, base + turn) * CFrame.new(Config.WheelRadius, 0, 0)).Position
+		-- Руки идут по ободу не дальше HandTurn: на полном повороте руль чуть проскальзывает в ладонях,
+		-- и отстающая рука не отрывается от обода.
+		local handTurn = math.clamp(turn, -math.rad(Config.HandTurn), math.rad(Config.HandTurn))
+		local grip = (wheel * ANG(0, 0, base + handTurn) * CFrame.new(Config.WheelRadius, 0, 0)).Position
 		local shoulder = (torsoCf * arm.shoulder.c0).Position
 		local gripOff = (arm.gripH.Position - arm.wristH).Magnitude
 		local toGrip = grip - shoulder

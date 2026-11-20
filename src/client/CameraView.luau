@@ -85,7 +85,11 @@ function CameraView.init()
 		apply(on)
 		local menuOpen = Menus.isOpen()
 		-- Камера от третьего лица (FollowCamera) тоже держит мышь в центре: там тоже прицел.
-		local centered = on or FollowCamera.isActive()
+		-- За рулём прицел не нужен (стрелять может только пассажир).
+		local char = player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		local driving = hum ~= nil and hum.SeatPart ~= nil and hum.SeatPart:IsA("VehicleSeat")
+		local centered = on or (FollowCamera.isActive() and not driving)
 		cross.Visible = centered and not menuOpen
 		UserInputService.MouseIconEnabled = not centered or menuOpen
 	end)
