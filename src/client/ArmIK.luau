@@ -38,6 +38,17 @@ export type Arm = {
 	b: number,
 }
 
+-- C0 сустава прямо сейчас (присед меняет C0/Attachment0 на ходу, кэш в Joint устаревает).
+function ArmIK.c0(j: Joint): CFrame
+	local inst = j.inst :: any
+	if inst:IsA("Motor6D") then
+		return inst.C0
+	elseif inst.Attachment0 then
+		return inst.Attachment0.CFrame
+	end
+	return j.c0
+end
+
 function ArmIK.attCf(part: Instance, name: string, fallback: CFrame): CFrame
 	local a = part:FindFirstChild(name)
 	return if a and a:IsA("Attachment") then a.CFrame else fallback

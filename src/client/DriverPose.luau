@@ -127,11 +127,11 @@ local function update(char: Model, hum: Humanoid, dt: number, camPos: Vector3)
 	-- Грудь с позой этого кадра: корень → таз → поясница (с креном выше).
 	local lowerCf = lower.CFrame
 	if s.rootJ then
-		lowerCf = root.CFrame * s.rootJ.c0 * PoseStack.get(s.rootJ.inst) * s.rootJ.c1:Inverse()
+		lowerCf = root.CFrame * ArmIK.c0(s.rootJ) * PoseStack.get(s.rootJ.inst) * s.rootJ.c1:Inverse()
 	end
 	local torsoCf = torso.CFrame
 	if s.waist then
-		torsoCf = lowerCf * s.waist.c0 * PoseStack.get(s.waist.inst) * s.waist.c1:Inverse()
+		torsoCf = lowerCf * ArmIK.c0(s.waist) * PoseStack.get(s.waist.inst) * s.waist.c1:Inverse()
 	end
 	local top = cf * CFrame.new(0, seat.Size.Y / 2, 0)
 	local wheel = top * CFrame.new(Config.WheelOffset) * ANG(math.rad(Config.WheelTilt), 0, 0)

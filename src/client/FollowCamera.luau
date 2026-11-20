@@ -198,6 +198,17 @@ local function step(dt: number)
 	char = char :: Model
 	hum = hum :: Humanoid
 	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart
+	-- Посадка и другие системы могут вернуть камеру Roblox — держим свою.
+	if cam.CameraType ~= Enum.CameraType.Scriptable then
+		cam.CameraType = Enum.CameraType.Scriptable
+	end
+	-- После вида от первого лица Roblox оставляет тело невидимым (LocalTransparencyModifier = 1),
+	-- а при нашей камере его никто не возвращает.
+	for _, d in char:GetDescendants() do
+		if (d:IsA("BasePart") or d:IsA("Decal")) and d.LocalTransparencyModifier ~= 0 and d.Name ~= "HumanoidRootPart" then
+			d.LocalTransparencyModifier = 0
+		end
+	end
 	dt = math.clamp(dt, 1 / 240, 0.1)
 	local now = os.clock()
 

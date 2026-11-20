@@ -160,11 +160,11 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 	if st.waist and lower then
 		local lowerCf = lower.CFrame
 		if st.root then
-			lowerCf = root.CFrame * st.root.c0 * PoseStack.get(st.root.inst) * st.root.c1:Inverse()
+			lowerCf = root.CFrame * ArmIK.c0(st.root) * PoseStack.get(st.root.inst) * st.root.c1:Inverse()
 		end
 		local wj = st.waist.joint
 		local t = bendJoint(st.waist, ANG(rad(pitch * WAIST_SHARE * calm * st.weight), 0, 0))
-		torsoCf = lowerCf * wj.c0 * t * wj.c1:Inverse()
+		torsoCf = lowerCf * ArmIK.c0(wj) * t * wj.c1:Inverse()
 	end
 	if st.neck then
 		bendJoint(st.neck, ANG(rad(pitch * NECK_SHARE * calm * st.weight), 0, 0))

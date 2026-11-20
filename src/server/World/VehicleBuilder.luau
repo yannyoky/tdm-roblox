@@ -18,6 +18,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local VehiclesConfig = require(Shared.Config.Vehicles)
 local TeamsConfig = require(Shared.Config.Teams)
 local VehicleModels = require(script.Parent.VehicleModels)
+local Driving = require(Shared.Config.Character).Driving
 
 local VehicleBuilder = {}
 
@@ -50,6 +51,45 @@ local function part(props: { [string]: any }): Part
 		(p :: any)[k] = v
 	end
 	return p
+end
+
+-- Руль перед водительским сиденьем (у мешей машин своего руля нет). Стоит там же, где руки
+-- водителя держат его (Config/Character.Driving, клиент DriverPose): обод, три спицы, ступица, колонка.
+local function addSteeringWheel(model: Model, chassis: BasePart, seat: BasePart)
+	local top = seat.CFrame * CFrame.new(0, seat.Size.Y / 2, 0)
+	local center = top * CFrame.new(Driving.WheelOffset) * CFrame.Angles(math.rad(Driving.WheelTilt), 0, 0)
+	local r = Driving.WheelRadius
+	local holder = Instance.new("Model")
+	holder.Name = "SteeringWheel"
+	holder.Parent = model
+	local function piece(props: { [string]: any })
+		local p = part(props)
+		p.Color = Color3.fromRGB(24, 24, 26)
+		p.Material = Enum.Material.SmoothPlastic
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Massless = true
+		p.CastShadow = false
+		p.Parent = holder
+		weld(chassis, p)
+	end
+	local N = 16
+	local seg = 2 * math.pi * r / N * 1.08
+	for k = 0, N - 1 do
+		local a = k / N * 2 * math.pi
+		piece({ Name = "Rim", Size = Vector3.new(0.13, seg, 0.13), CFrame = center * CFrame.Angles(0, 0, a) * CFrame.new(r, 0, 0) })
+	end
+	for _, a in { 0, math.pi, -math.pi / 2 } do
+		piece({ Name = "Spoke", Size = Vector3.new(r, 0.09, 0.06), CFrame = center * CFrame.Angles(0, 0, a) * CFrame.new(r / 2, 0, 0) })
+	end
+	piece({ Name = "Hub", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.2, 0.42, 0.42), CFrame = center * CFrame.Angles(0, math.pi / 2, 0) })
+	piece({
+		Name = "Column",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.9, 0.16, 0.16),
+		CFrame = center * CFrame.new(0, 0, -0.5) * CFrame.Angles(0, math.pi / 2, 0),
+	})
 end
 
 local function ghost(p: BasePart)
@@ -324,6 +364,9 @@ function VehicleBuilder.build(typeId: string, groundCf: CFrame, teamKey: string)
 		seat.Massless = true
 		seat.Parent = model
 		weld(chassis, seat)
+		if i == 1 and Driving and Driving.SteeringWheel ~= false and not s.open then
+			addSteeringWheel(model, chassis, seat)
+		end
 
 		-- Дверь: точка сбоку у сиденья (для мест в кузове — у борта или сзади).
 		local side = if s.door == "back" then 0 elseif s.pos.X < 0 then -1 else 1
