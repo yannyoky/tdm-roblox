@@ -4,6 +4,8 @@
 --   * повороты: на ходу тело кренится внутрь поворота, тем сильнее, чем выше скорость;
 --   * приземление: после высокого прыжка или падения таз проседает, колени сгибаются, ступни
 --     остаются на земле, затем тело пружинисто выпрямляется (сила зависит от скорости падения);
+--   * ступни на земле: стоя на лестнице, бордюре или склоне, таз опускается к нижней ступне,
+--     а нога на верхней ступеньке сгибается; стопа ложится по наклону поверхности (IK ног);
 --   * переходы: все добавки сглажены, резких скачков позы нет.
 -- Считается на каждом клиенте для всех видимых персонажей (игроки и боты), как WeaponPose:
 -- поверх анимаций выставляются Transform суставов Root, бёдер, коленей и голеностопов.
@@ -14,12 +16,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config.Character).Locomotion
+local PoseStack = require(script.Parent.PoseStack)
 
 local player = Players.LocalPlayer
 
 local Locomotion = {}
 
-type Bend = { inst: any, base: CFrame, last: CFrame? }
+type Bend = { inst: any }
 
 type State = {
 	hum: Humanoid,
@@ -44,6 +47,13 @@ type State = {
 	trans: CFrame?, -- откуда «переезжает» тело при посадке/выходе (в системе HumanoidRootPart)
 	transT: number,
 	transCf: CFrame?, -- добавка этого кадра (её повторяем после физики, см. Heartbeat)
+	ikW: number, -- вес IK ног (1 — стоит, 0 — идёт)
+	ikL: number, -- высота земли под левой/правой ступнёй относительно обычного уровня ступней
+	ikR: number,
+	nL: Vector3, -- нормаль земли под ступнёй (в системе HumanoidRootPart)
+	nR: Vector3,
+	leftFoot: BasePart?,
+	rightFoot: BasePart?,
 }
 
 local states: { [Model]: State } = {}
@@ -77,7 +87,7 @@ local function build(char: Model): State?
 		if not inst or not (inst:IsA("Motor6D") or inst:IsA("AnimationConstraint")) then
 			return nil
 		end
-		joints[name] = { inst = inst, base = CFrame.identity, last = nil }
+		joints[name] = { inst = inst }
 	end
 	-- Точка опоры наклона — между ступнями, в системе сустава Root (C0 в HumanoidRootPart).
 	local rootJoint = joints.Root.inst
@@ -110,29 +120,38 @@ local function build(char: Model): State?
 		trans = nil,
 		transT = 0,
 		transCf = nil,
+		ikW = 0,
+		ikL = 0,
+		ikR = 0,
+		nL = Vector3.yAxis,
+		nR = Vector3.yAxis,
+		leftFoot = char:FindFirstChild("LeftFoot") :: BasePart?,
+		rightFoot = char:FindFirstChild("RightFoot") :: BasePart?,
 	}
 end
 
--- Добавка к позе анимации: Transform = pre · (поза анимации) · extra. Если анимация в этом кадре сустав не трогала, в Transform осталось
--- наше значение с прошлого кадра: тогда берём сохранённую позу анимации.
+-- Добавка к позе анимации: Transform = pre · (поза анимации) · extra (через общий стек поз).
 local function bend(b: Bend, extra: CFrame, pre: CFrame?)
-	local current: CFrame = b.inst.Transform
-	if b.last == nil or current ~= b.last then
-		b.base = current
-	end
-	local t = if pre then pre * b.base * extra else b.base * extra
-	b.inst.Transform = t
-	b.last = t
+	PoseStack.add(b.inst, extra, pre)
 end
 
-local function release(st: State)
-	for _, b in st.joints do
-		if b.last and b.inst.Transform == b.last then
-			b.inst.Transform = b.base
-		end
-		b.last = nil
+-- Земля под ступнёй: насколько она выше (+) или ниже (−) обычного уровня ступней.
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+rayParams.RespectCanCollide = true
+
+local function groundUnder(char: Model, root: BasePart, foot: BasePart?, floorY: number): (number, Vector3)
+	if not foot then
+		return 0, Vector3.yAxis
 	end
-	st.active = false
+	local p = foot.Position
+	local from = Vector3.new(p.X, floorY + Config.FootIKUp, p.Z)
+	rayParams.FilterDescendantsInstances = { char }
+	local hit = workspace:Raycast(from, Vector3.new(0, -(Config.FootIKUp + Config.FootIKDown), 0), rayParams)
+	if not hit then
+		return 0, Vector3.yAxis
+	end
+	return math.clamp(hit.Position.Y - floorY, -Config.FootIKDown, Config.FootIKUp), root.CFrame:VectorToObjectSpace(hit.Normal)
 end
 
 local function update(char: Model, st: State, dt: number, camPos: Vector3)
@@ -226,6 +245,7 @@ local function update(char: Model, st: State, dt: number, camPos: Vector3)
 	local far = (root.Position - camPos).Magnitude > Config.MaxDistance
 	local firstPerson = char == player.Character and head ~= nil and (head.Position - camPos).Magnitude < 1.6
 	local tiny = math.abs(st.pitch) < 0.002 and math.abs(st.roll) < 0.002 and math.abs(st.landX) < 0.005
+		and not (Config.FootIK and speed < 3)
 	-- Переход при посадке и выходе — и в виде от первого лица: камера в этот момент переключается,
 	-- и без этого добавка пропадала на 2–3 кадра (тело «прыгало»).
 	st.transCf = if transCf and not far then transCf else nil
@@ -235,30 +255,58 @@ local function update(char: Model, st: State, dt: number, camPos: Vector3)
 		return
 	end
 	if far or firstPerson or busy or tiny then
-		if st.active then
-			release(st)
-		end
+		st.active = false
+		st.ikW = 0
 		return
 	end
 	st.active = true
 
 	local drop = math.min(0, st.landX)
 	local legs = not char:GetAttribute("Crouching")
-	local pivot = st.pivot
-	bend(st.joints.Root, CFrame.new(pivot) * CFrame.Angles(st.pitch, 0, st.roll) * CFrame.new(-pivot) * CFrame.new(0, if legs then drop else 0, 0))
-	if legs and drop < -0.005 then
-		-- Бедро вперёд на α, голень назад на 2α, стопа обратно на α: ступни остаются под тазом.
-		local alpha = math.acos(math.clamp(1 + drop / (2 * st.leg), -1, 1))
-		local hipCf = CFrame.Angles(alpha, 0, 0)
-		local kneeCf = CFrame.Angles(-2 * alpha, 0, 0)
-		local ankleCf = CFrame.Angles(alpha, 0, 0)
-		bend(st.joints.LeftHip, hipCf)
-		bend(st.joints.RightHip, hipCf)
-		bend(st.joints.LeftKnee, kneeCf)
-		bend(st.joints.RightKnee, kneeCf)
-		bend(st.joints.LeftAnkle, ankleCf)
-		bend(st.joints.RightAnkle, ankleCf)
+
+	-- IK ног: стоя (и почти стоя) ступни встают на свою высоту земли.
+	local ikTarget = if legs and grounded and Config.FootIK and (root.Position - camPos).Magnitude < Config.FootIKDistance
+		then math.clamp(1 - speed / 3, 0, 1)
+		else 0
+	st.ikW += (ikTarget - st.ikW) * math.min(1, dt * 8)
+	local ikDrop = 0
+	if st.ikW > 0.01 then
+		local floorY = root.Position.Y - root.Size.Y / 2 - hum.HipHeight
+		local dL, nL = groundUnder(char, root, st.leftFoot, floorY)
+		local dR, nR = groundUnder(char, root, st.rightFoot, floorY)
+		local k = math.min(1, dt * 14)
+		st.ikL += (dL - st.ikL) * k
+		st.ikR += (dR - st.ikR) * k
+		st.nL = st.nL:Lerp(nL, k)
+		st.nR = st.nR:Lerp(nR, k)
+		ikDrop = math.min(0, st.ikL, st.ikR) * st.ikW
+	else
+		st.ikL, st.ikR = 0, 0
 	end
+
+	local pivot = st.pivot
+	bend(st.joints.Root, CFrame.new(pivot) * CFrame.Angles(st.pitch, 0, st.roll) * CFrame.new(-pivot) * CFrame.new(0, if legs then drop + ikDrop else 0, 0))
+	if not legs then
+		return
+	end
+	-- Каждая нога укорачивается на s: бедро вперёд на α, голень назад на 2α, стопа обратно на α —
+	-- ступня остаётся под тазом. Плюс стопа ложится по наклону земли.
+	local function leg(side: string, height: number, n: Vector3)
+		local s = -drop + (height * st.ikW - ikDrop)
+		local slopeW = st.ikW
+		if s < 0.005 and slopeW < 0.01 then
+			return
+		end
+		local alpha = math.acos(math.clamp(1 - math.max(0, s) / (2 * st.leg), -1, 1))
+		local up = math.max(0.3, n.Y)
+		local tilt = math.clamp(math.atan2(n.Z, up), -Config.FootMaxTilt, Config.FootMaxTilt) * slopeW
+		local roll = math.clamp(math.atan2(-n.X, up), -Config.FootMaxTilt, Config.FootMaxTilt) * slopeW
+		bend(st.joints[side .. "Hip"], CFrame.Angles(alpha, 0, 0))
+		bend(st.joints[side .. "Knee"], CFrame.Angles(-2 * alpha, 0, 0))
+		bend(st.joints[side .. "Ankle"], CFrame.Angles(alpha + tilt, 0, roll))
+	end
+	leg("Left", st.ikL, st.nL)
+	leg("Right", st.ikR, st.nR)
 end
 
 local function stateFor(char: Model): State?
@@ -319,9 +367,8 @@ function Locomotion.init()
 		end
 	end)
 
-	-- После анимаций (как WeaponPose): добавки ложатся на позу этого кадра.
-	RunService.Stepped:Connect(function(_, dt)
-		dt = math.clamp(dt, 1 / 240, 0.1)
+	-- После анимаций (первым в стеке поз): добавки ложатся на позу этого кадра.
+	PoseStack.layer(10, function(dt)
 		local camPos = workspace.CurrentCamera.CFrame.Position
 		local function run(char: Model?)
 			if not char then
@@ -349,10 +396,7 @@ function Locomotion.init()
 	RunService.Heartbeat:Connect(function()
 		for char, st in states do
 			if st.transCf and char.Parent then
-				local b = st.joints.Root
-				if b.inst.Transform ~= b.last then
-					bend(b, CFrame.identity, st.transCf)
-				end
+				PoseStack.reapply(st.joints.Root.inst)
 			end
 		end
 	end)

@@ -48,6 +48,15 @@ function CrouchPose.set(char: Model, on: boolean)
 				motor:SetAttribute("BaseC0", base)
 			end
 			motor.C0 = if on then base * CFrame.Angles(j.angle, 0, 0) else base
+		elseif motor and motor:IsA("AnimationConstraint") and motor.Attachment0 then
+			-- Новые риги R15 (AnimationConstraint): роль C0 играет Attachment0.
+			local att = motor.Attachment0
+			local base = motor:GetAttribute("BaseC0")
+			if typeof(base) ~= "CFrame" then
+				base = att.CFrame
+				motor:SetAttribute("BaseC0", base)
+			end
+			att.CFrame = if on then base * CFrame.Angles(j.angle, 0, 0) else base
 		end
 	end
 	char:SetAttribute("Crouching", on)

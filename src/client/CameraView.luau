@@ -1,5 +1,6 @@
 -- Вид от первого лица. Включён по умолчанию, переключается клавишей V или в настройках.
--- В машине, после смерти (камера на убийце) и при выключенной настройке — вид от третьего лица.
+-- В машине, после смерти (камера на убийце) и при выключенной настройке — вид от третьего лица
+-- (пешком и в машине его ведёт FollowCamera — камера в стиле GTA).
 -- От первого лица руки с оружием рисует Viewmodel, в центре экрана прицел.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -8,6 +9,7 @@ local UserInputService = game:GetService("UserInputService")
 local Ui = require(script.Parent.Ui)
 local Menus = require(script.Parent.Menus)
 local PlayerSettings = require(script.Parent.PlayerSettings)
+local FollowCamera = require(script.Parent.FollowCamera)
 
 local player = Players.LocalPlayer
 
@@ -82,8 +84,14 @@ function CameraView.init()
 		local on = wantFirstPerson()
 		apply(on)
 		local menuOpen = Menus.isOpen()
-		cross.Visible = on and not menuOpen
-		UserInputService.MouseIconEnabled = not on or menuOpen
+		-- Камера от третьего лица (FollowCamera) тоже держит мышь в центре: там тоже прицел.
+		-- За рулём прицел не нужен (стрелять может только пассажир).
+		local char = player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		local driving = hum ~= nil and hum.SeatPart ~= nil and hum.SeatPart:IsA("VehicleSeat")
+		local centered = on or (FollowCamera.isActive() and not driving)
+		cross.Visible = centered and not menuOpen
+		UserInputService.MouseIconEnabled = not centered or menuOpen
 	end)
 
 	UserInputService.InputBegan:Connect(function(input, processed)
