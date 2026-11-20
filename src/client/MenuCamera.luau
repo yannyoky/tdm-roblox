@@ -80,11 +80,16 @@ local function groundAt(x: number, z: number): number
 end
 
 -- Наивысшая точка под отрезком a→b (несколько проб).
+-- Пробы по оси и по бокам в 18 стадах: стёкла небоскрёбов лучами не ловятся, держим запас.
 local function clearance(a: Vector3, b: Vector3): number
 	local top = -math.huge
-	for i = 0, 6 do
-		local p = a:Lerp(b, i / 6)
-		top = math.max(top, groundAt(p.X, p.Z))
+	local dir = b - a
+	local side = if dir.Magnitude > 1e-3 then dir.Unit:Cross(Vector3.yAxis) * 18 else Vector3.zero
+	for i = 0, 8 do
+		local p = a:Lerp(b, i / 8)
+		for _, off in { Vector3.zero, side, -side } do
+			top = math.max(top, groundAt(p.X + off.X, p.Z + off.Z))
+		end
 	end
 	return top
 end
@@ -134,7 +139,7 @@ local function makeShot(rng: Random, kind: number): Shot
 		local start = Vector3.new(rng:NextNumber(-half, half) * 0.5, 0, rng:NextNumber(-half, half) * 0.5)
 		local dir = CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0).LookVector
 		local finish = start + dir * rng:NextNumber(110, 150)
-		local y = clearance(start - dir * 20, finish + dir * 60) + rng:NextNumber(16, 26)
+		local y = clearance(start - dir * 20, finish + dir * 60) + rng:NextNumber(26, 36)
 		local p0, p1 = Vector3.new(start.X, y, start.Z), Vector3.new(finish.X, y, finish.Z)
 		local down = Vector3.new(0, -0.32, 0)
 		return {
@@ -151,7 +156,7 @@ local function makeShot(rng: Random, kind: number): Shot
 		local p0 = target + off * 70
 		local p1 = target + off * 95
 		local base = clearance(p0, target)
-		local y0 = math.max(base + 14, target.Y + 14)
+		local y0 = math.max(base + 24, target.Y + 20)
 		local y1 = math.max(clearance(p1, target) + 60, target.Y + 70)
 		return {
 			from = CFrame.lookAt(Vector3.new(p0.X, y0, p0.Z), target),

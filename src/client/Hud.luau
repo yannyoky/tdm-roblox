@@ -214,6 +214,11 @@ function Hud.init()
 	end
 	state.AttributeChanged:Connect(refresh)
 	Menus.onChanged(refresh) -- кнопки голосования прячутся, пока открыто окно
+	-- Главное меню само показывает статус матча и профиль: HUD под ним не дублирует текст.
+	Menus.onChanged(function(name)
+		gui.Enabled = name ~= "Main"
+	end)
+	gui.Enabled = not Menus.isOpen("Main")
 	refresh()
 
 	local function refreshPlayer()

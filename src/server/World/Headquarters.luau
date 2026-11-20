@@ -233,10 +233,11 @@ local function voteZone(g: Instance, cf: CFrame, modeId: string)
 
 	-- Название режима над кругом и счётчик голосов.
 	local bb = Instance.new("BillboardGui")
-	bb.Size = UDim2.new(10, 0, 3.4, 0)
-	bb.StudsOffset = Vector3.new(0, 6.5, 0)
+	-- Размер в пикселях: вблизи надпись не раздувается, издалека соседние не наезжают друг на друга.
+	bb.Size = UDim2.fromOffset(190, 64)
+	bb.StudsOffset = Vector3.new(0, 4.5, 0)
 	bb.LightInfluence = 0
-	bb.MaxDistance = 90
+	bb.MaxDistance = 60
 	bb.Parent = inner
 	local name = Instance.new("TextLabel")
 	name.BackgroundTransparency = 1
