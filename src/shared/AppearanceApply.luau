@@ -85,12 +85,6 @@ function AppearanceApply.describe(
 		(desc :: any)[prop] = 0
 	end
 
-	-- Цвет кожи.
-	local tone = Appearance.Tones[look.Tone] or Appearance.Tones[Appearance.DefaultLook.Tone]
-	for _, prop in COLOR_PROPS do
-		(desc :: any)[prop] = tone
-	end
-
 	-- Тело (меши частей тела одного из двух реалистичных тел).
 	local body = Appearance.option("Body", look.Body) or Appearance.Options.Body[1]
 	for _, part in BODY_PARTS do
@@ -102,6 +96,12 @@ function AppearanceApply.describe(
 	if head then
 		desc.Head = head.Asset or 0
 		desc.Face = 0
+	end
+
+	-- Цвет кожи. У головы с кожей в текстуре (SkinTone) тело красится под голову.
+	local tone = (head and head.SkinTone) or Appearance.Tones[look.Tone] or Appearance.Tones[Appearance.DefaultLook.Tone]
+	for _, prop in COLOR_PROPS do
+		(desc :: any)[prop] = tone
 	end
 
 	-- Причёска.

@@ -3,11 +3,15 @@
 
 local Character = {}
 
--- Пропорции R15 (HumanoidDescription). 0 — классический «кубический» Roblox, 1 — реалистичные пропорции (Rthro).
+-- Пропорции R15 (HumanoidDescription). Раньше эта таблица называлась так же, как настройки
+-- BodyLife ниже (Character.Body), и затиралась ими — пропорции не применялись вовсе.
+-- Значения ниже — стандартные: тела и головы в Config/Appearance подобраны и проверены
+-- в Studio именно с ними. BodyTypeScale и ProportionScale сильно меняют реалистичные тела,
+-- поэтому, меняя их, проверьте в Studio, что голова садится на шею без зазора.
 -- Рост почти не меняем, чтобы укрытия, окна и двери на картах подходили по высоте.
-Character.Body = {
-	BodyTypeScale = 0.6,
-	ProportionScale = 0.5,
+Character.Proportions = {
+	BodyTypeScale = 0.3,
+	ProportionScale = 1,
 	HeightScale = 1,
 	WidthScale = 1,
 	DepthScale = 1,

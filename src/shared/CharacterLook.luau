@@ -24,7 +24,7 @@ end
 
 -- Пропорции в описании (для новых моделей, например ботов).
 function CharacterLook.applyToDescription(desc: HumanoidDescription)
-	for key, value in Config.Body do
+	for key, value in Config.Proportions do
 		pcall(function()
 			(desc :: any)[key] = value
 		end)
@@ -42,7 +42,7 @@ function CharacterLook.applyBody(char: Model)
 		return
 	end
 	local changed = false
-	for key, value in Config.Body do
+	for key, value in Config.Proportions do
 		if (desc :: any)[key] ~= value then
 			(desc :: any)[key] = value
 			changed = true

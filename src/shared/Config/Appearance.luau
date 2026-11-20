@@ -40,33 +40,53 @@ Appearance.LookSlots = {
 -- Все id проверены через catalog.roblox.com. Только реалистичные вещи: старые «кубические»
 -- головы, причёски и тела Roblox убраны.
 Appearance.Options = {
-	-- Два тела. Parts — меши частей тела из бандла, Head — лицо по умолчанию для этого тела.
+	-- Два тела. Parts — меши частей тела, Head — лицо по умолчанию для этого тела.
+	-- Голова и тело подобраны и проверены в Studio вместе: голова садится на шею без зазора.
 	Body = {
 		{
-			-- «Realistic Male Body» (Ryzie), бандл 52179038679057.
+			-- Тело «Realistic Muscle Male Doll» (Limerence #), бандл 17319439671905.
 			Id = "male",
 			Gender = "M",
 			Name = "Мужское",
-			Head = "m_latino",
-			Parts = { Torso = 79418338717280, RightArm = 121594678924210, LeftArm = 77458402169586, LeftLeg = 84512788424940, RightLeg = 113243143782428 },
+			Head = "m_gta",
+			Parts = { Torso = 86020764157979, RightArm = 136084963335699, LeftArm = 118230420636257, LeftLeg = 88372396093345, RightLeg = 95060431528417 },
 		},
 		{
-			-- «Realistic Woman Model Body (Re-Colorable)» (Lilisyas), бандл 173451028496931.
+			-- «Woman Fashion Model Doll» (angelshefford), бандл 181282816119101.
 			Id = "female",
 			Gender = "F",
 			Name = "Женское",
-			Head = "f_freckled",
-			Parts = { Torso = 116815625686744, RightArm = 78600606254039, LeftArm = 120485520963285, LeftLeg = 112873404240220, RightLeg = 122474588382372 },
+			Head = "f_model",
+			Parts = { Torso = 122831550366162, RightArm = 95246976223366, LeftArm = 106832235837446, LeftLeg = 124333485905753, RightLeg = 86653892031792 },
 		},
 	},
-	-- Динамические головы (лицо с мимикой). Только головы человеческой формы: «кубические»
-	-- головы с нарисованным лицом убраны. Проверено в Studio на обоих телах.
+	-- Динамические головы (лицо с мимикой, FaceControls). Только естественные лица:
+	-- кукольные, с большими глазами и мультяшные убраны.
+	-- SkinTone — у головы кожа нарисована текстурой и HeadColor на неё не действует:
+	-- тело красится в этот цвет, выбор цвета кожи в меню для такой головы не показывается.
+	-- Rest — «лицо в покое» поверх мимики (Config/Character.Face, src/client/FaceLife.luau):
+	-- значения FaceControls без Left/Right (ставятся на обе стороны). Подобраны в Studio,
+	-- чтобы глаза не выглядели крупными и «стеклянными». EyeClosed больше 0.25 — лицо сонное.
 	Head = {
-		{ Id = "m_latino", Gender = "M", Name = "Мужчина 1", Asset = 112433260004346 },
-		{ Id = "m_zeslin", Gender = "M", Name = "Мужчина 2", Asset = 124854450528412 },
-		{ Id = "f_freckled", Gender = "F", Name = "Женщина 1", Asset = 93831161835736 },
-		{ Id = "f_honey", Gender = "F", Name = "Женщина 2", Asset = 97738333936586 },
-		{ Id = "f_porcelain", Gender = "F", Name = "Женщина 3", Asset = 88043782935086 },
+		{
+			-- Голова из бандла «Realistic GTA Man PS2» (loveanwgel), 8600248977437.
+			-- Хмурые брови нарисованы в текстуре: поднимаем внутренние края бровей и чуть улыбаемся.
+			Id = "m_gta",
+			Gender = "M",
+			Name = "Мужчина",
+			Asset = 85999187125569,
+			SkinTone = Color3.fromRGB(205, 140, 90),
+			Rest = { InnerBrowRaiser = 0.25, LipCornerPuller = 0.15, CheekRaiser = 0.1, LipsTogether = 0.3 },
+		},
+		{
+			-- Временно, пока делаем свою женскую голову: родная голова тела «Woman Fashion Model Doll».
+			Id = "f_model",
+			Gender = "F",
+			Name = "Женщина",
+			Asset = 76846031172896,
+			SkinTone = Color3.fromRGB(236, 196, 170),
+			Rest = { EyeClosed = 0.22, UpperLidRaiser = 0, CheekRaiser = 0.12, LipCornerPuller = 0.08 },
+		},
 	},
 	Hair = {
 		{ Id = "none", Name = "Бритая голова" },
@@ -205,7 +225,7 @@ Appearance.Clothing = {
 Appearance.DefaultLook = {
 	Tone = 3,
 	Body = "male",
-	Head = "m_latino",
+	Head = "m_gta",
 	Hair = "buzz",
 	Beard = "none",
 	Glasses = "none",
@@ -213,8 +233,8 @@ Appearance.DefaultLook = {
 
 -- Что ставить по умолчанию для каждого тела, если выбранное к нему не подходит.
 Appearance.GenderDefaults = {
-	M = { Head = "m_latino", Hair = "buzz", Beard = "none" },
-	F = { Head = "f_freckled", Hair = "wavy", Beard = "none" },
+	M = { Head = "m_gta", Hair = "buzz", Beard = "none" },
+	F = { Head = "f_model", Hair = "wavy", Beard = "none" },
 }
 
 -- Подходит ли вариант к телу этого пола.
@@ -256,6 +276,19 @@ end
 
 function Appearance.option(slot: string, id: string?): any
 	return Appearance.findIn(Appearance.Options[slot], id)
+end
+
+-- Голова по id ассета (для мимики: клиент знает только HumanoidDescription.Head).
+function Appearance.headByAsset(asset: number?): any
+	if not asset or asset == 0 then
+		return nil
+	end
+	for _, opt in Appearance.Options.Head do
+		if opt.Asset == asset then
+			return opt
+		end
+	end
+	return nil
 end
 
 return Appearance
