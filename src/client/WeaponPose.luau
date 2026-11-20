@@ -11,10 +11,11 @@
 -- Ноги анимируются как раньше.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 
 local Weapons = require(ReplicatedStorage:WaitForChild("Shared").Config.Weapons)
 local Net = require(ReplicatedStorage:WaitForChild("Shared").Net)
+local ArmIK = require(script.Parent.ArmIK)
+local PoseStack = require(script.Parent.PoseStack)
 
 local player = Players.LocalPlayer
 
@@ -51,118 +52,13 @@ local function poseFor(id: string, def): any
 	return POSES.Long
 end
 
-------------------------------------------------------------------------
--- Рука из двух костей (как в Viewmodel, но для настоящих суставов персонажа)
-
--- Сустав: Motor6D (C0/C1) у старых ригов или AnimationConstraint (Attachment0/1) у новых.
--- У обоих Part1 = Part0 * c0 * Transform * c1⁻¹.
-type Joint = { inst: Instance, c0: CFrame, c1: CFrame }
-
-local function joint(inst: Instance?): Joint?
-	if inst and inst:IsA("Motor6D") then
-		return { inst = inst, c0 = inst.C0, c1 = inst.C1 }
-	elseif inst and inst:IsA("AnimationConstraint") and inst.Attachment0 and inst.Attachment1 then
-		return { inst = inst, c0 = inst.Attachment0.CFrame, c1 = inst.Attachment1.CFrame }
-	end
-	return nil
-end
-
-type Arm = {
-	upper: BasePart,
-	lower: BasePart,
-	hand: BasePart,
-	shoulder: Joint,
-	elbow: Joint,
-	wrist: Joint,
-	shoulderU: Vector3,
-	boneU: Vector3,
-	elbowL: Vector3,
-	boneL: Vector3, -- локоть→запястье в предплечье
-	wristH: Vector3, -- запястье в кисти
-	gripH: CFrame, -- точка хвата в кисти
-	handOffset: CFrame, -- кисть относительно предплечья в исходной позе
-	a: number,
-	b: number,
-}
-
-local function attCf(part: Instance, name: string, fallback: CFrame): CFrame
-	local a = part:FindFirstChild(name)
-	return if a and a:IsA("Attachment") then a.CFrame else fallback
-end
-
-local function buildArm(char: Model, side: string): Arm?
-	local upper = char:FindFirstChild(side .. "UpperArm")
-	local lower = char:FindFirstChild(side .. "LowerArm")
-	local hand = char:FindFirstChild(side .. "Hand")
-	if not (upper and lower and hand and upper:IsA("BasePart") and lower:IsA("BasePart") and hand:IsA("BasePart")) then
-		return nil
-	end
-	local shoulder = joint(upper:FindFirstChild(side .. "Shoulder"))
-	local elbow = joint(lower:FindFirstChild(side .. "Elbow"))
-	local wrist = joint(hand:FindFirstChild(side .. "Wrist"))
-	if not (shoulder and elbow and wrist) then
-		return nil
-	end
-	local shoulderU = attCf(upper, side .. "ShoulderRigAttachment", CF(0, 0.4, 0)).Position
-	local elbowU = attCf(upper, side .. "ElbowRigAttachment", CF(0, -0.3, 0)).Position
-	local elbowL = attCf(lower, side .. "ElbowRigAttachment", CF(0, 0.3, 0)).Position
-	local wristL = attCf(lower, side .. "WristRigAttachment", CF(0, -0.45, 0)).Position
-	local wristH = attCf(hand, side .. "WristRigAttachment", CF(0, 0.2, 0)).Position
-	local gripH = attCf(hand, side .. "GripAttachment", CF(0, -0.1, 0) * ANG(rad(-90), 0, 0))
-	return {
-		upper = upper,
-		lower = lower,
-		hand = hand,
-		shoulder = shoulder,
-		elbow = elbow,
-		wrist = wrist,
-		shoulderU = shoulderU,
-		boneU = elbowU - shoulderU,
-		elbowL = elbowL,
-		boneL = wristL - elbowL,
-		wristH = wristH,
-		gripH = gripH,
-		handOffset = CF(wristL - wristH),
-		a = (elbowU - shoulderU).Magnitude,
-		b = (wristL - elbowL).Magnitude,
-	}
-end
-
-local function basis(bone: Vector3, ref: Vector3): CFrame
-	local y = -bone.Unit
-	local x = ref - y * ref:Dot(y)
-	if x.Magnitude < 1e-3 then
-		x = Vector3.zAxis:Cross(y)
-	end
-	return CFrame.fromMatrix(Vector3.zero, x.Unit, y)
-end
-
--- Плечо и предплечье так, чтобы запястье оказалось в точке wrist. Возвращает CFrame деталей.
-local function solve(arm: Arm, shoulder: Vector3, wrist: Vector3, pole: Vector3, roll: Vector3): (CFrame, CFrame)
-	local a, b = arm.a, arm.b
-	local toT = wrist - shoulder
-	local d = math.clamp(toT.Magnitude, math.abs(a - b) + 0.05, (a + b) * 0.999)
-	local dir = if toT.Magnitude > 1e-4 then toT.Unit else v(0, 0, -1)
-	local cosA = math.clamp((a * a + d * d - b * b) / (2 * a * d), -1, 1)
-	local sinA = math.sqrt(1 - cosA * cosA)
-	local perp = pole - dir * pole:Dot(dir)
-	perp = if perp.Magnitude > 1e-4 then perp.Unit else v(0, -1, 0)
-	local elbow = shoulder + dir * (a * cosA) + perp * (a * sinA)
-	-- если не дотягивается, предплечье просто тянется в сторону цели
-	local reach = elbow + (wrist - elbow).Unit * b
-	local rU = basis(elbow - shoulder, roll) * basis(arm.boneU, Vector3.xAxis):Inverse()
-	local upperCf = CF(shoulder - rU:VectorToWorldSpace(arm.shoulderU)) * rU
-	local rL = basis(reach - elbow, roll) * basis(arm.boneL, Vector3.xAxis):Inverse()
-	local lowerCf = CF(elbow - rL:VectorToWorldSpace(arm.elbowL)) * rL
-	return upperCf, lowerCf
-end
-
--- Transform сустава, чтобы деталь part1 встала в cf1 при детали part0 в cf0.
-local function setJoint(j: Joint, cf0: CFrame, cf1: CFrame, weight: number)
-	local m = j.inst :: any
-	local t = j.c0:Inverse() * cf0:Inverse() * cf1 * j.c1
-	m.Transform = if weight >= 1 then t else m.Transform:Lerp(t, weight)
-end
+-- Рука из двух костей: общий решатель в ArmIK (им же руки кладутся на руль и тянутся к предметам).
+type Joint = ArmIK.Joint
+type Arm = ArmIK.Arm
+local joint = ArmIK.joint
+local buildArm = ArmIK.buildArm
+local solve = ArmIK.solve
+local setJoint = ArmIK.setJoint
 
 ------------------------------------------------------------------------
 
@@ -172,20 +68,11 @@ local NECK_SHARE = 0.35
 -- Отдача со стороны: насколько уходит оружие на один выстрел (1 — автомат).
 local KICK = { Rifle = 1, SMG = 0.7, Shotgun = 2, LMG = 1.1, Sniper = 2.2, Pistol = 1.1, Revolver = 1.6 }
 
--- Наклон сустава поверх анимации. Если анимация в этом кадре сустав не трогала,
--- Transform остался нашим с прошлого кадра: тогда берём сохранённую позу анимации.
-type Bend = { joint: Joint, base: CFrame, last: CFrame? }
+-- Наклон сустава поверх анимации и других слоёв (общий стек поз).
+type Bend = { joint: Joint }
 
 local function bendJoint(b: Bend, extra: CFrame): CFrame
-	local m = b.joint.inst :: any
-	local current: CFrame = m.Transform
-	if b.last == nil or current ~= b.last then
-		b.base = current
-	end
-	local t = b.base * extra
-	m.Transform = t
-	b.last = t
-	return t
+	return PoseStack.add(b.joint.inst, extra)
 end
 
 type State = {
@@ -198,6 +85,7 @@ type State = {
 	kick: number,
 	waist: Bend?,
 	neck: Bend?,
+	root: Joint?,
 }
 local states: { [Model]: State } = setmetatable({}, { __mode = "k" }) :: any
 
@@ -207,6 +95,8 @@ local function getState(char: Model): State
 		local upper = char:FindFirstChild("UpperTorso")
 		local head = char:FindFirstChild("Head")
 		local waist = upper and joint(upper:FindFirstChild("Waist"))
+		local lowerPart = char:FindFirstChild("LowerTorso")
+		local lowerRoot = lowerPart and joint(lowerPart:FindFirstChild("Root"))
 		local neck = head and joint(head:FindFirstChild("Neck"))
 		st = {
 			right = buildArm(char, "Right"),
@@ -216,8 +106,9 @@ local function getState(char: Model): State
 			sprint = 0,
 			pitch = 0,
 			kick = 0,
-			waist = if waist then { joint = waist, base = CFrame.identity } else nil,
-			neck = if neck then { joint = neck, base = CFrame.identity } else nil,
+			waist = if waist then { joint = waist } else nil,
+			neck = if neck then { joint = neck } else nil,
+			root = lowerRoot,
 		}
 		states[char] = st
 	end
@@ -237,16 +128,8 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 	local tool = char:FindFirstChildOfClass("Tool")
 	local id = tool and tool:GetAttribute("WeaponId")
 	if not tool or type(id) ~= "string" then
-		-- Убрали оружие: вернуть пояснице и шее позу анимации.
-		local old = states[char]
-		if old then
-			for _, bend in { old.waist, old.neck } do
-				if bend and bend.last and (bend.joint.inst :: any).Transform == bend.last then
-					(bend.joint.inst :: any).Transform = bend.base
-				end
-			end
-			states[char] = nil
-		end
+		-- Убрали оружие: поясница и шея вернутся к позе анимации сами (стек поз).
+		states[char] = nil
 		return
 	end
 	local st = getState(char)
@@ -270,13 +153,18 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 
 	-- Поясница и шея берут часть наклона прицела (на бегу и при перезарядке — меньше).
 	-- Положение груди считаем уже с новым наклоном, иначе руки отстанут от корпуса на кадр.
+	-- Таз считаем от корня с позой этого кадра (наклоны и разворот бёдер уже добавлены).
 	local lower = char:FindFirstChild("LowerTorso") :: BasePart?
 	local torsoCf = torso.CFrame
 	local calm = (1 - st.sprint) * (1 - st.reload * 0.5)
 	if st.waist and lower then
+		local lowerCf = lower.CFrame
+		if st.root then
+			lowerCf = root.CFrame * ArmIK.c0(st.root) * PoseStack.get(st.root.inst) * st.root.c1:Inverse()
+		end
 		local wj = st.waist.joint
 		local t = bendJoint(st.waist, ANG(rad(pitch * WAIST_SHARE * calm * st.weight), 0, 0))
-		torsoCf = lower.CFrame * wj.c0 * t * wj.c1:Inverse()
+		torsoCf = lowerCf * ArmIK.c0(wj) * t * wj.c1:Inverse()
 	end
 	if st.neck then
 		bendJoint(st.neck, ANG(rad(pitch * NECK_SHARE * calm * st.weight), 0, 0))
@@ -327,7 +215,7 @@ end
 function WeaponPose.init()
 	-- Свой наклон взгляда отправляем серверу (не чаще ~8 раз в секунду и только при изменении).
 	local AimPitch = Net.get("AimPitch")
-	local sentPitch, sentAt = 0, 0
+	local sentPitch, sentYaw, sentAt = 0, 0, 0
 
 	local bots: { [Model]: true } = {}
 	local function track(child: Instance)
@@ -363,16 +251,22 @@ function WeaponPose.init()
 		track(child)
 	end
 
-	-- Stepped идёт после анимаций: наши Transform рук заменяют позу из анимации на этот кадр.
-	RunService.Stepped:Connect(function(_, dt)
-		dt = math.min(dt, 0.1)
+	-- После анимаций и слоёв тела (стек поз): наши Transform рук заменяют позу из анимации на этот кадр.
+	PoseStack.layer(40, function(dt)
 		local cam = workspace.CurrentCamera
 		local camPos = cam.CFrame.Position
 		local myPitch = math.deg(math.asin(math.clamp(cam.CFrame.LookVector.Y, -1, 1)))
+		-- Куда смотрит голова относительно корпуса (влево +), чтобы другие видели взгляд.
+		local myYaw = 0
+		local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if myRoot then
+			local l = myRoot.CFrame:VectorToObjectSpace(cam.CFrame.LookVector)
+			myYaw = math.deg(math.atan2(-l.X, -l.Z))
+		end
 		local now = os.clock()
-		if math.abs(myPitch - sentPitch) > 3 and now - sentAt > 0.12 then
-			sentPitch, sentAt = myPitch, now
-			AimPitch:FireServer(myPitch)
+		if (math.abs(myPitch - sentPitch) > 3 or math.abs(myYaw - sentYaw) > 6) and now - sentAt > 0.12 then
+			sentPitch, sentYaw, sentAt = myPitch, myYaw, now
+			AimPitch:FireServer(myPitch, myYaw)
 		end
 		for _, p in Players:GetPlayers() do
 			local char = p.Character

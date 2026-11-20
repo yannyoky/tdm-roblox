@@ -26,12 +26,16 @@ function PhysicsSetup.init()
 
 	-- Присед: клиент просит, сервер ставит позу, чтобы её видели все и опустились хитбоксы.
 	-- Наклон прицела игрока: по нему другие клиенты поднимают и опускают руки с оружием.
-	Net.get("AimPitch").OnServerEvent:Connect(function(player, pitch)
+	-- Поворот взгляда (yaw, влево +): по нему другие клиенты поворачивают голову персонажа.
+	Net.get("AimPitch").OnServerEvent:Connect(function(player, pitch, yaw)
 		local char = player.Character
 		if typeof(pitch) ~= "number" or pitch ~= pitch or not char then
 			return
 		end
 		char:SetAttribute("AimPitch", math.floor(math.clamp(pitch, -80, 80) + 0.5))
+		if typeof(yaw) == "number" and yaw == yaw then
+			char:SetAttribute("LookYaw", math.floor(math.clamp(yaw, -180, 180) + 0.5))
+		end
 	end)
 
 	Net.get("Crouch").OnServerEvent:Connect(function(player, on)
