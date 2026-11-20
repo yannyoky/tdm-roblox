@@ -17,7 +17,10 @@ local SHOT_TIME = 9 -- секунд на один план
 local FADE_TIME = 0.7
 local FOV = 60
 
-local running = false
+local running = false -- идёт пролёт
+local busy = false -- камера наша (пролёт или переход к персонажу); FollowCamera в это время не трогает её
+local BIND = "MenuCamera"
+local PRIORITY = Enum.RenderPriority.Camera.Value + 10 -- после всех остальных камер
 local token = 0
 local fade: Frame? = nil
 local savedFov = 70
@@ -172,6 +175,7 @@ function MenuCamera.start()
 		return
 	end
 	running = true
+	busy = true
 	token += 1
 	local my = token
 	local cam = camera()
@@ -188,7 +192,8 @@ function MenuCamera.start()
 			stream(shot.from.Position)
 			kind = kind % 3 + 1
 			local t0 = os.clock()
-			local conn = RunService.RenderStepped:Connect(function()
+			RunService:UnbindFromRenderStep(BIND)
+			RunService:BindToRenderStep(BIND, PRIORITY, function()
 				if my ~= token then
 					return
 				end
@@ -206,11 +211,9 @@ function MenuCamera.start()
 				waited += task.wait(0.1)
 			end
 			if my ~= token then
-				conn:Disconnect()
 				return
 			end
 			fadeTo(1, FADE_TIME)
-			conn:Disconnect()
 		end
 	end)
 end
@@ -240,17 +243,20 @@ function MenuCamera.stop(toCharacter: boolean?)
 			cam.CFrame = from
 			cam.FieldOfView = savedFov
 			local t0 = os.clock()
-			local conn = RunService.RenderStepped:Connect(function()
+			RunService:UnbindFromRenderStep(BIND)
+			RunService:BindToRenderStep(BIND, PRIORITY, function()
 				local t = smooth((os.clock() - t0) / 1.4)
+				cam.CameraType = Enum.CameraType.Scriptable
 				cam.CFrame = from:Lerp(to, t)
 			end)
 			fadeTo(0, 0.5)
 			task.wait(0.9)
-			conn:Disconnect()
 		end
+		RunService:UnbindFromRenderStep(BIND)
 		if my ~= token then
 			return
 		end
+		busy = false
 		cam.FieldOfView = savedFov
 		if hum then
 			cam.CameraSubject = hum
@@ -260,8 +266,14 @@ function MenuCamera.stop(toCharacter: boolean?)
 	end)
 end
 
+-- Идёт пролёт меню.
 function MenuCamera.isRunning(): boolean
 	return running
+end
+
+-- Камера занята меню (пролёт или переход к персонажу): другие камеры её не трогают.
+function MenuCamera.isBusy(): boolean
+	return busy
 end
 
 return MenuCamera
