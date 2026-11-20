@@ -110,6 +110,16 @@ local function update(char: Model, hum: Humanoid, dt: number, camPos: Vector3)
 		PoseStack.add(s.neck.inst, ANG(-s.pitch * 0.5, look, -s.roll * 0.6))
 	end
 
+	-- Руль машины крутится вместе с руками (Motor6D «Turn» у оси руля, см. VehicleBuilder).
+	if driver then
+		local sw = model:FindFirstChild("SteeringWheel")
+		local pivot = sw and sw:FindFirstChild("Pivot")
+		local turnMotor = pivot and pivot:FindFirstChild("Turn")
+		if turnMotor and turnMotor:IsA("Motor6D") then
+			turnMotor.Transform = ANG(0, 0, -s.steer * math.rad(Config.WheelTurn))
+		end
+	end
+
 	-- Руки на руле.
 	if not driver or not s.left or not s.right then
 		return

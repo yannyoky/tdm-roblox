@@ -62,6 +62,16 @@ local function addSteeringWheel(model: Model, chassis: BasePart, seat: BasePart)
 	local holder = Instance.new("Model")
 	holder.Name = "SteeringWheel"
 	holder.Parent = model
+	-- Невидимая ось руля: на шарнире Motor6D к шасси, клиенты крутят её вслед за SteerFloat (DriverPose).
+	local pivot = part({ Name = "Pivot", Size = Vector3.new(0.1, 0.1, 0.1), CFrame = center })
+	ghost(pivot)
+	pivot.Parent = holder
+	local motor = Instance.new("Motor6D")
+	motor.Name = "Turn"
+	motor.Part0 = chassis
+	motor.Part1 = pivot
+	motor.C0 = chassis.CFrame:ToObjectSpace(center)
+	motor.Parent = pivot
 	local function piece(props: { [string]: any })
 		local p = part(props)
 		p.Color = Color3.fromRGB(24, 24, 26)
@@ -72,7 +82,7 @@ local function addSteeringWheel(model: Model, chassis: BasePart, seat: BasePart)
 		p.Massless = true
 		p.CastShadow = false
 		p.Parent = holder
-		weld(chassis, p)
+		weld(pivot, p)
 	end
 	local N = 16
 	local seg = 2 * math.pi * r / N * 1.08
@@ -84,12 +94,21 @@ local function addSteeringWheel(model: Model, chassis: BasePart, seat: BasePart)
 		piece({ Name = "Spoke", Size = Vector3.new(r, 0.09, 0.06), CFrame = center * CFrame.Angles(0, 0, a) * CFrame.new(r / 2, 0, 0) })
 	end
 	piece({ Name = "Hub", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.2, 0.42, 0.42), CFrame = center * CFrame.Angles(0, math.pi / 2, 0) })
-	piece({
+	local column = part({
 		Name = "Column",
 		Shape = Enum.PartType.Cylinder,
 		Size = Vector3.new(0.9, 0.16, 0.16),
 		CFrame = center * CFrame.new(0, 0, -0.5) * CFrame.Angles(0, math.pi / 2, 0),
+		Color = Color3.fromRGB(24, 24, 26),
+		Material = Enum.Material.SmoothPlastic,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Massless = true,
+		CastShadow = false,
 	})
+	column.Parent = holder
+	weld(chassis, column)
 end
 
 local function ghost(p: BasePart)

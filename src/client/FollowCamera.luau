@@ -79,7 +79,9 @@ local function wanted(): (boolean, Model?, Humanoid?)
 	if not char or not hum or hum.Health <= 0 or not char:FindFirstChild("HumanoidRootPart") then
 		return false
 	end
-	if workspace.CurrentCamera.CameraSubject ~= hum then
+	-- За рулём Roblox делает объектом камеры сиденье водителя — это тоже «своя» камера.
+	local subject = workspace.CurrentCamera.CameraSubject
+	if subject ~= hum and not (hum.SeatPart and subject == hum.SeatPart) then
 		return false -- экран смерти, наблюдение: камерой управляет Roblox
 	end
 	if PlayerSettings.get("FirstPerson") and not hum.SeatPart then
