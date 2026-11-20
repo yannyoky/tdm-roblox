@@ -53,6 +53,14 @@ local function part(props: { [string]: any }): Part
 	return p
 end
 
+local function ghost(p: BasePart)
+	p.Transparency = 1
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Massless = true
+end
+
 -- Руль перед водительским сиденьем (у мешей машин своего руля нет). Стоит там же, где руки
 -- водителя держат его (Config/Character.Driving, клиент DriverPose): обод, три спицы, ступица, колонка.
 local function addSteeringWheel(model: Model, chassis: BasePart, seat: BasePart)
@@ -111,13 +119,6 @@ local function addSteeringWheel(model: Model, chassis: BasePart, seat: BasePart)
 	weld(chassis, column)
 end
 
-local function ghost(p: BasePart)
-	p.Transparency = 1
-	p.CanCollide = false
-	p.CanQuery = false
-	p.CanTouch = false
-	p.Massless = true
-end
 
 -- Видимое колесо поверх физического: шина, диск и спицы (по ним видно, что колесо крутится).
 local function dressWheel(model: Model, wheel: BasePart, name: string, r: number, w: number, side: number)
