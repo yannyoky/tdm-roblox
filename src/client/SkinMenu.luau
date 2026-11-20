@@ -305,24 +305,29 @@ function SkinMenu.init()
 			end)
 		end
 
-		header(3, "Цвет кожи")
-		local tones = Ui.make("Frame", { LayoutOrder = 4, Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = list }, {
-			Ui.make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
-		})
-		local currentTone = look.Tone or Appearance.DefaultLook.Tone
-		for i, color in Appearance.Tones do
-			local b = Ui.button("", {
-				LayoutOrder = i,
-				Size = UDim2.new(0, 36, 0, 36),
-				BackgroundColor3 = color,
-				Parent = tones,
+		-- У головы с кожей в текстуре цвет тела задан самой головой: выбор не показываем.
+		local lookHead = Appearance.option("Head", look.Head or Appearance.GenderDefaults[gender].Head)
+		local fixedTone = lookHead ~= nil and lookHead.SkinTone ~= nil
+		if not fixedTone then
+			header(3, "Цвет кожи")
+			local tones = Ui.make("Frame", { LayoutOrder = 4, Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = list }, {
+				Ui.make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
 			})
-			if currentTone == i then
-				Ui.make("UIStroke", { Color = C.Accent, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = b })
+			local currentTone = look.Tone or Appearance.DefaultLook.Tone
+			for i, color in Appearance.Tones do
+				local b = Ui.button("", {
+					LayoutOrder = i,
+					Size = UDim2.new(0, 36, 0, 36),
+					BackgroundColor3 = color,
+					Parent = tones,
+				})
+				if currentTone == i then
+					Ui.make("UIStroke", { Color = C.Accent, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = b })
+				end
+				b.Activated:Connect(function()
+					setLook("Tone", i)
+				end)
 			end
-			b.Activated:Connect(function()
-				setLook("Tone", i)
-			end)
 		end
 
 		header(5, "Лицо и причёска")

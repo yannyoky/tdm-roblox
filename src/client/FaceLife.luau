@@ -7,12 +7,16 @@
 --   * с оружием — сосредоточенный взгляд (прищур, сведённые брови);
 --   * попадание — гримаса боли, раненый (Downed) — боль не отпускает;
 --   * в покое — едва заметные движения бровей и губ, лицо не «замирает» маской.
+--   * «лицо в покое» (Rest) берётся из настроек головы в Config/Appearance: лёгкий прищур,
+--     полуулыбка — так естественнее, чем голова «как из коробки» с крупными глазами.
 -- Если у головы нет FaceControls (обычная голова), ничего не делает.
 -- Настройки — Config/Character (Face).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Config = require(ReplicatedStorage:WaitForChild("Shared").Config.Character).Face
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config.Character).Face
+local Appearance = require(Shared.Config.Appearance)
 local PoseStack = require(script.Parent.PoseStack)
 local BodyLife = require(script.Parent.BodyLife)
 
@@ -35,7 +39,17 @@ type State = {
 	wince: number,
 	lastHealth: number,
 	written: { [string]: number },
+	rest: { [string]: number },
 }
+
+local NO_REST: { [string]: number } = {}
+
+-- «Лицо в покое» для этой головы: по id головы в HumanoidDescription персонажа.
+local function restFor(hum: Humanoid): { [string]: number }
+	local desc = hum:FindFirstChildOfClass("HumanoidDescription")
+	local head = desc and Appearance.headByAsset(desc.Head)
+	return (head and head.Rest) or NO_REST
+end
 
 local states: { [Model]: State } = {}
 local broken: { [string]: boolean } = {} -- свойства, которых нет у этой версии FaceControls
@@ -87,6 +101,7 @@ local function build(char: Model): State?
 		wince = 0,
 		lastHealth = hum.Health,
 		written = {},
+		rest = restFor(hum),
 	}
 end
 
@@ -171,19 +186,31 @@ local function update(char: Model, st: State, dt: number, camPos: Vector3, now: 
 		return
 	end
 
-	both(st, "EyeClosed", math.max(blink, w * 0.35, exertion * 0.08))
+	if st.rest == NO_REST then
+		st.rest = restFor(hum) -- описание могло дойти до клиента позже головы
+	end
+	local rest = st.rest
+	local function r(prop: string): number
+		return rest[prop] or 0
+	end
+	-- Свойства, которые есть только в «лице в покое».
+	both(st, "CheekRaiser", r("CheekRaiser"))
+	both(st, "UpperLidRaiser", r("UpperLidRaiser"))
+
+	local lid = r("EyeClosed")
+	both(st, "EyeClosed", lid + (1 - lid) * math.max(blink, w * 0.35, exertion * 0.08))
 	set(st, "EyesLookLeft", math.max(0, st.eyeX))
 	set(st, "EyesLookRight", math.max(0, -st.eyeX))
 	set(st, "EyesLookUp", math.max(0, st.eyeY))
 	set(st, "EyesLookDown", math.max(0, -st.eyeY))
-	both(st, "BrowLowerer", math.max(0, micro) + focus * 0.28 + exertion * 0.2 + w * 0.8)
-	both(st, "InnerBrowRaiser", math.max(0, -micro) * 0.8 + w * 0.25)
-	both(st, "LidTightener", focus * 0.3 + exertion * 0.15 + w * 0.75)
+	both(st, "BrowLowerer", r("BrowLowerer") + math.max(0, micro) + focus * 0.28 + exertion * 0.2 + w * 0.8)
+	both(st, "InnerBrowRaiser", r("InnerBrowRaiser") + math.max(0, -micro) * 0.8 + w * 0.25)
+	both(st, "LidTightener", r("LidTightener") + focus * 0.3 + exertion * 0.15 + w * 0.75)
 	set(st, "Corrugator", focus * 0.2 + w * 0.6)
 	both(st, "NoseWrinkler", w * 0.5)
 	both(st, "LipStretcher", w * 0.55 + exertion * 0.1)
-	both(st, "LipCornerPuller", math.max(0, micro2) * 0.6)
-	set(st, "LipsTogether", focus * 0.25 * (1 - exertion))
+	both(st, "LipCornerPuller", r("LipCornerPuller") * (1 - w) + math.max(0, micro2) * 0.6)
+	set(st, "LipsTogether", r("LipsTogether") * (1 - exertion) + focus * 0.25 * (1 - exertion))
 	set(st, "JawDrop", math.max(mouth, w * 0.22))
 end
 
