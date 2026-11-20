@@ -101,11 +101,11 @@ function Hud.init()
 	captureText.Parent = captureBar
 	captureBar.Parent = gui
 
-	-- Голосование в лобби.
+	-- Голосование в штабе: голосуют, вставая в круг режима на полу. Здесь только счёт голосов.
 	local votePanel = make("Frame", {
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -110),
-		Size = UDim2.new(0, 420, 0, 50),
+		Size = UDim2.new(0, 560, 0, 34),
 		BackgroundTransparency = 1,
 		Visible = false,
 	}, {
@@ -116,14 +116,16 @@ function Hud.init()
 		}),
 	})
 	votePanel.Parent = gui
-	local voteButtons: { [string]: TextButton } = {}
-	local myVote = nil
+	local voteButtons: { [string]: TextLabel } = {}
 	for id in string.gmatch(state:GetAttribute("VoteOptions") or "", "[^,]+") do
-		local b = button(id, UDim2.new(0, 200, 1, 0))
-		b.Activated:Connect(function()
-			myVote = id
-			Net.get("VoteMode"):FireServer(id)
-		end)
+		local b = label({
+			Size = UDim2.new(0, 170, 1, 0),
+			BackgroundColor3 = PANEL,
+			BackgroundTransparency = 0.35,
+			TextScaled = false,
+			TextSize = 16,
+		})
+		corner(6).Parent = b
 		b.Parent = votePanel
 		voteButtons[id] = b
 	end
@@ -203,14 +205,20 @@ function Hud.init()
 			captureText.Text = string.format("Захват %d%%", progress)
 		end
 
-		votePanel.Visible = phase == "Lobby" and not Menus.isOpen()
+		local char = player.Character
+		votePanel.Visible = phase == "Lobby" and not Menus.isOpen() and char ~= nil and char:GetAttribute("InLobby") == true
 		for id, b in voteButtons do
 			local name = state:GetAttribute("ModeName_" .. id) or id
-			b.Text = string.format("%s%s (%d)", if myVote == id then "✓ " else "", name, state:GetAttribute("Votes_" .. id) or 0)
+			b.Text = string.format("%s: %d", name, state:GetAttribute("Votes_" .. id) or 0)
 		end
 	end
 	state.AttributeChanged:Connect(refresh)
 	Menus.onChanged(refresh) -- кнопки голосования прячутся, пока открыто окно
+	-- Главное меню само показывает статус матча и профиль: HUD под ним не дублирует текст.
+	Menus.onChanged(function(name)
+		gui.Enabled = name ~= "Main"
+	end)
+	gui.Enabled = not Menus.isOpen("Main")
 	refresh()
 
 	local function refreshPlayer()

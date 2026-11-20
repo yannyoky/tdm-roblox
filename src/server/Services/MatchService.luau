@@ -26,6 +26,7 @@ local ShopService = require(Services.ShopService)
 local WeaponService = require(Services.WeaponService)
 local MapService = require(Services.MapService)
 local VehicleService = require(Services.Parent:WaitForChild("World"):WaitForChild("VehicleService"))
+local Headquarters = require(Services.Parent:WaitForChild("World"):WaitForChild("Headquarters"))
 local BotService = require(Services.BotService)
 local PhysicsSetup = require(Services.PhysicsSetup)
 local DamageService = require(Services.DamageService)
@@ -176,9 +177,7 @@ end
 
 -- Точка появления. Сюда подключается MapService с отдельными базами команд.
 local function pickSpawn(folderName: string): CFrame
-	if folderName ~= "Lobby" then
-		folderName = MapService.spawnFolder(folderName, mode and mode.def)
-	end
+	folderName = MapService.spawnFolder(folderName, mode and mode.def)
 	local spawns = map:FindFirstChild("Spawns")
 	local folder = spawns and spawns:FindFirstChild(folderName)
 	local list = if folder then folder:GetChildren() else {}
@@ -190,7 +189,30 @@ local function pickSpawn(folderName: string): CFrame
 	return spot.CFrame + Vector3.new(0, 4, 0)
 end
 
--- Появление бойца: на арене за свою команду или в лобби (только игроки).
+-- Штаб, в котором игрок ждёт матч: выбранная сторона, а при «Любой» — та, за которую
+-- он играл в прошлом матче, или менее занятая.
+local function lobbySide(player: Player): string
+	local preferred = player:GetAttribute("PreferredTeam")
+	if preferred == TEAM_KEYS[1] or preferred == TEAM_KEYS[2] then
+		return preferred
+	end
+	local side = player:GetAttribute("LobbySide")
+	if side == TEAM_KEYS[1] or side == TEAM_KEYS[2] then
+		return side
+	end
+	local counts = { [TEAM_KEYS[1]] = 0, [TEAM_KEYS[2]] = 0 }
+	for _, other in Players:GetPlayers() do
+		local s = other ~= player and other:GetAttribute("LobbySide")
+		if s and counts[s] then
+			counts[s] += 1
+		end
+	end
+	side = if counts[TEAM_KEYS[1]] <= counts[TEAM_KEYS[2]] then TEAM_KEYS[1] else TEAM_KEYS[2]
+	player:SetAttribute("LobbySide", side)
+	return side
+end
+
+-- Появление бойца: на арене за свою команду или в штабе своей стороны (только игроки).
 local function spawnEntity(entity, forceLobby: boolean?)
 	local key = getTeamKey(entity)
 	if isBot(entity) then
@@ -222,7 +244,13 @@ local function spawnEntity(entity, forceLobby: boolean?)
 	end
 	PhysicsSetup.prepareCharacter(char)
 	char:SetAttribute("InLobby", not onArena)
-	char:PivotTo(pickSpawn(if onArena then key :: string else "Lobby"))
+	if onArena then
+		char:PivotTo(pickSpawn(key :: string))
+	else
+		local side = lobbySide(player)
+		player:SetAttribute("LobbySide", side)
+		char:PivotTo(Headquarters.spawnCFrame(side))
+	end
 	if onArena then
 		local inventory = DataService.getInventory(player)
 		WeaponService.giveInventory(player, inventory)
@@ -265,7 +293,8 @@ local function assignTeam(player: Player): string
 	elseif preferred == TEAM_KEYS[2] and countB <= countA then
 		key = TEAM_KEYS[2]
 	elseif countA == countB then
-		key = TEAM_KEYS[math.random(2)]
+		local side = player:GetAttribute("LobbySide")
+		key = if side == TEAM_KEYS[1] or side == TEAM_KEYS[2] then side else TEAM_KEYS[math.random(2)]
 	else
 		key = if countA < countB then TEAM_KEYS[1] else TEAM_KEYS[2]
 	end
@@ -434,6 +463,26 @@ local function refreshVotes()
 	for _, id in ModesConfig.Order do
 		setState("Votes_" .. id, counts[id] or 0)
 	end
+	Headquarters.setVotes(counts)
+end
+
+-- Голос ногами: игрок, вставший в круг режима в штабе, голосует за этот режим.
+local function scanVoteZones()
+	local changed = false
+	for _, player in readyPlayers() do
+		local char = player.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root and char:GetAttribute("InLobby") then
+			local modeId = Headquarters.voteZoneAt(root.Position)
+			if modeId and votes[player] ~= modeId then
+				votes[player] = modeId
+				changed = true
+			end
+		end
+	end
+	if changed then
+		refreshVotes()
+	end
 end
 
 local function countVotes(): string
@@ -474,6 +523,11 @@ local function runLobby(): string
 	setState("Winner", "")
 	setState("Scoreboard", "[]")
 	for _, player in Players:GetPlayers() do
+		-- После матча игрок со стороной «Любая» возвращается в штаб той стороны, за которую играл.
+		local played = getTeamKey(player)
+		if played then
+			player:SetAttribute("LobbySide", played)
+		end
 		player.Neutral = true
 		player.Team = nil
 		task.spawn(spawnEntity, player)
@@ -490,9 +544,12 @@ local function runLobby(): string
 		refreshVotes()
 		local enough = true
 		for t = MatchConfig.IntermissionTime, 1, -1 do
-			setState("Message", "Голосуйте за режим и выберите оружие")
+			setState("Message", "Встаньте в круг режима, чтобы проголосовать")
 			setState("TimeLeft", t)
-			task.wait(1)
+			for _ = 1, 4 do
+				task.wait(0.25)
+				scanVoteZones()
+			end
 			if #readyPlayers() < minPlayers() then
 				enough = false
 				break
@@ -734,6 +791,18 @@ function MatchService.start()
 	end)
 
 	Net.get("Play").OnServerEvent:Connect(onPlay)
+	-- Смена стороны в меню: в лобби сразу переводим игрока в штаб этой стороны.
+	Net.get("ChooseSide").OnServerEvent:Connect(function(player, preferred)
+		if preferred ~= TEAM_KEYS[1] and preferred ~= TEAM_KEYS[2] then
+			preferred = "Any"
+		end
+		player:SetAttribute("PreferredTeam", preferred)
+		local char = player.Character
+		if preferred ~= "Any" and char and char:GetAttribute("InLobby") and player:GetAttribute("LobbySide") ~= preferred then
+			player:SetAttribute("LobbySide", preferred)
+			char:PivotTo(Headquarters.spawnCFrame(preferred))
+		end
+	end)
 	Net.get("SaveSettings").OnServerEvent:Connect(function(player, settings)
 		DataService.setSettings(player, settings)
 	end)

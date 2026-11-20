@@ -19,6 +19,7 @@ local UserInputService = game:GetService("UserInputService")
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config.Character).Camera
 local PlayerSettings = require(script.Parent.PlayerSettings)
 local Menus = require(script.Parent.Menus)
+local MenuCamera = require(script.Parent.MenuCamera)
 
 local player = Players.LocalPlayer
 
@@ -71,8 +72,8 @@ local function armed(char: Model): boolean
 end
 
 local function wanted(): (boolean, Model?, Humanoid?)
-	if not Config.Enabled then
-		return false
+	if not Config.Enabled or MenuCamera.isBusy() then
+		return false -- пролёт камеры в главном меню
 	end
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")

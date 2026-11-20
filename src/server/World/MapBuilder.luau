@@ -1,7 +1,7 @@
 -- Собирает карту из описания в Config/MapsData.json в папку Workspace.Map.
 -- Структура результата совместима с MatchService и режимами:
 --   Map/Geometry/...                       -- всё, что видно и по чему ходят
---   Map/Spawns/<Team>, <Team>_Forward, Lobby
+--   Map/Spawns/<Team>, <Team>_Forward
 --   Map/CapturePoints/<Имя зоны>           -- зоны капта (могут быть повёрнуты)
 --   Map/Bases/<Team>                       -- невидимый объём базы (защищённая зона)
 --   Map/VehiclePads/<Team>/Pad1..N         -- площадки, где появляются машины
@@ -20,6 +20,7 @@ local DecorConfig = require(Shared.Config.Decor)
 local Detailer = require(script.Parent.Detailer)
 local BaseStyles = require(script.Parent.BaseStyles)
 local CityBuilder = require(script.Parent.CityBuilder)
+local Headquarters = require(script.Parent.Headquarters)
 local CityConfig = require(Shared.Config.City)
 local CityGrid = require(Shared.CityGrid)
 
@@ -328,7 +329,6 @@ function builders.beam(geo: Instance, e)
 end
 
 local currentMapId = ""
-local buildLobbySpawns: (map: Folder) -> ()
 
 local function buildElement(geo: Instance, e, style: Random)
 	local fn = builders[e.k]
@@ -717,23 +717,10 @@ local function buildForward(map: Folder, geo: Instance, teamKey: string, pos: Ve
 end
 
 ------------------------------------------------------------------------
--- Лобби (общее для всех карт)
+-- Лобби (общее для всех карт): штабы сторон, см. World/Headquarters.luau
 
 function MapBuilder.ensureLobby(): Model
-	local existing = workspace:FindFirstChild("Lobby")
-	if existing then
-		return existing
-	end
-	local lobby = make("Model", { Name = "Lobby" }, nil)
-	local p = MapsConfig.Lobby.Position
-	local gray = Color3.fromRGB(70, 70, 80)
-	box(lobby, "LobbyFloor", Vector3.new(48, 2, 48), CFrame.new(p - Vector3.new(0, 1, 0)), gray, Enum.Material.Concrete)
-	box(lobby, "LobbyRail", Vector3.new(48, 6, 1), CFrame.new(p + Vector3.new(0, 3, 24)), gray, Enum.Material.Concrete)
-	box(lobby, "LobbyRail", Vector3.new(48, 6, 1), CFrame.new(p + Vector3.new(0, 3, -24)), gray, Enum.Material.Concrete)
-	box(lobby, "LobbyRail", Vector3.new(1, 6, 48), CFrame.new(p + Vector3.new(24, 3, 0)), gray, Enum.Material.Concrete)
-	box(lobby, "LobbyRail", Vector3.new(1, 6, 48), CFrame.new(p + Vector3.new(-24, 3, 0)), gray, Enum.Material.Concrete)
-	lobby.Parent = workspace
-	return lobby
+	return Headquarters.ensure()
 end
 
 ------------------------------------------------------------------------
@@ -812,7 +799,6 @@ function MapBuilder.build(mapId: string): Folder
 				warn("[MapBuilder] Отделка баз:", err)
 			end
 		end
-		buildLobbySpawns(map)
 		return map
 	end
 
@@ -950,25 +936,7 @@ function MapBuilder.build(mapId: string): Folder
 		end
 	end
 
-	buildLobbySpawns(map)
 	return map
-end
-
--- Точки лобби (сама площадка общая, см. ensureLobby).
-buildLobbySpawns = function(map: Folder)
-	local lobbySpawns = folder(map:FindFirstChild("Spawns") :: Instance, "Lobby")
-	local lp = MapsConfig.Lobby.Position
-	for i, offset in { Vector3.new(-10, 0, -10), Vector3.new(10, 0, -10), Vector3.new(-10, 0, 10), Vector3.new(10, 0, 10) } do
-		make("Part", {
-			Name = "Spawn" .. i,
-			Size = Vector3.new(5, 0.2, 5),
-			CFrame = CFrame.new(lp + offset + Vector3.new(0, 0.1, 0)),
-			Transparency = 1,
-			CanCollide = false,
-			CanQuery = false,
-			CanTouch = false,
-		}, lobbySpawns)
-	end
 end
 
 return MapBuilder

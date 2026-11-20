@@ -19,6 +19,7 @@ local REMOTES = {
 	"PreviewLook", -- клиент → сервер: собрать предпросмотр в PlayerGui.LookPreview (look, faction?, outfit?, skinId?)
 	"SaveSettings", -- клиент → сервер: настройки ({ [key] = value })
 	"Play", -- клиент → сервер: нажал «Играть» в главном меню (preferredTeam: "Bandits" | "Gov" | "Any")
+	"ChooseSide", -- клиент → сервер: выбрал сторону в меню (preferredTeam), в лобби переводит в штаб этой стороны
 	"Crouch", -- клиент → сервер: присесть или встать (on)
 	"AimPitch", -- клиент → сервер: наклон взгляда вверх/вниз и поворот головы в градусах (pitch, yaw), чтобы другие видели, куда смотрит
 	"Died", -- сервер → игрок: экран смерти (killerName?, weaponId?, respawnIn?, killerHealth?)
