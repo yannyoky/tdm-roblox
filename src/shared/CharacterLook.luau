@@ -15,6 +15,7 @@ local ANIMATE_SLOTS = {
 	swim = { "Swim" },
 	swimidle = { "SwimIdle" },
 	idle = { "Animation1", "Animation2" },
+	sit = { "SitAnim" },
 }
 
 local function id(value: string): string
