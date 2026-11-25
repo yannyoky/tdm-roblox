@@ -113,6 +113,23 @@ local function build(char: Model)
 	for _, t in animator:GetPlayingAnimationTracks() do
 		t:Stop(0.2)
 	end
+	-- Animate мог успеть запустить ещё что-то (например, мимику mood) — гасим и это чуть позже,
+	-- иначе трек мимики перебивает FaceLife.
+	task.delay(1, function()
+		local r = rig
+		if not r or r.char ~= char then
+			return
+		end
+		local ours: { [AnimationTrack]: boolean } = {}
+		for _, slot in r.slots do
+			ours[slot.track] = true
+		end
+		for _, t in animator:GetPlayingAnimationTracks() do
+			if not ours[t] then
+				t:Stop(0.3)
+			end
+		end
+	end)
 
 	local slots: { [string]: Slot } = {}
 	local function load(name: string, id: string?, looped: boolean)
