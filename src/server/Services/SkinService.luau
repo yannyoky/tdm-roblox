@@ -243,13 +243,18 @@ local function buildPreview(player: Player, request)
 		local model = AppearanceApply.buildModel(look, desc)
 		local gui = player:FindFirstChildOfClass("PlayerGui")
 		if model and gui and player.Parent == Players then
+			local parts = 0
 			for _, inst in model:GetDescendants() do
 				if inst:IsA("Script") or inst:IsA("LocalScript") then
 					inst:Destroy()
 				elseif inst:IsA("BasePart") then
 					inst.Anchored = true
+					parts += 1
 				end
 			end
+			-- Клиент ждёт, пока доедут все детали, и только потом копирует модель в окно.
+			model:SetAttribute("Parts", parts)
+			model.Archivable = true
 			model.Name = "Preview"
 			local folder = gui:FindFirstChild("LookPreview")
 			if not folder then
