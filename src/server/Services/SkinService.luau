@@ -125,6 +125,11 @@ local function loadGenerated(player: Player, faction: string?): boolean
 	model.Name = player.Name
 	local hum = model:FindFirstChildOfClass("Humanoid") :: Humanoid
 	hum.DisplayName = player.DisplayName
+	-- У шаблона модели нет Animator (его движок добавляет только при LoadCharacter):
+	-- без него не играет ни одна анимация и тело висит в исходной позе, «кружась» на полу.
+	if not hum:FindFirstChildOfClass("Animator") then
+		Instance.new("Animator").Parent = hum
+	end
 	local scripts = StarterPlayer:FindFirstChild("StarterCharacterScripts")
 	for _, child in (scripts and scripts:GetChildren()) or {} do
 		local existing = model:FindFirstChild(child.Name)
