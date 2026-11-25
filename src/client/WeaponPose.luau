@@ -42,7 +42,7 @@ local POSES: { [string]: any } = {
 
 -- Левая кисть сгенерированных тел на цевье (в пространстве оружия: X вправо, Y вверх, −Z — ствол).
 local LEFT_FINGERS = v(0.25, 0.15, -0.95).Unit
-local LEFT_PALM = v(0.3, 1, 0)
+local LEFT_PALM = v(-0.3, -1, 0) -- ладонь — ось −X кисти (как у правой), смотрит вверх под цевьё
 
 local function poseFor(id: string, def): any
 	if def and def.Kind == "Grenade" then
@@ -237,7 +237,7 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 		local dirToTarget = (target - shoulderL)
 		local wristL = target - (if dirToTarget.Magnitude > 0 then dirToTarget.Unit else L) * gripOff
 		local poleL = -rightCf * 0.6 - up
-		-- Сгенерированные тела: кисть снизу под цевьём, ладонь вверх-внутрь (+X кисти), пальцы вдоль цевья.
+		-- Сгенерированные тела: кисть снизу под цевьём, ладонь (−X кисти) обхватывает цевьё снизу, пальцы вдоль цевья.
 		-- У обычных тел кисть — продолжение предплечья.
 		local handRot: CFrame? = nil
 		if char:GetAttribute("GeneratedBody") ~= nil then
