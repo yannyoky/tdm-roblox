@@ -14,18 +14,19 @@ local CharacterAnimService = {}
 -- Хват оружия у сгенерированных тел (GeneratedBody): их GripAttachment стоит посреди длинной
 -- кисти и повёрнут так, что ствол смотрит вдоль пальцев, а ладонь — вверх.
 -- Ставим хват так, чтобы при позе WeaponPose (локоть вниз-наружу) кисть продолжала предплечье:
--- пальцы (−Y кисти) вперёд и чуть внутрь по ходу ствола, ладонь (−Z кисти) внутрь к оружию.
+-- пальцы (−Y кисти) вперёд и чуть внутрь по ходу ствола, ладонь (−X кисти — самая тонкая ось
+-- сгенерированной кисти) внутрь к оружию. Проверено в Студии: запястье 20° (винтовка), 14° (пистолет).
 -- Направления — в пространстве оружия (X вправо, Y вверх, −Z — ствол). Левая кисть лежит
--- под цевьём ладонью вверх — для неё оставляем простой поворот.
-local RIGHT_FINGERS = Vector3.new(-0.35, 0.05, -0.94).Unit
+-- поворачивает WeaponPose (здесь от хвата берётся только точка).
+local RIGHT_FINGERS = Vector3.new(-0.5, 0.2, -0.85).Unit
 local RIGHT_PALM = Vector3.new(-1, -0.3, 0)
 local LEFT_ANGLE = math.rad(-90)
 
 local function rightGripRotation(): CFrame
 	local f = RIGHT_FINGERS
 	local p = (RIGHT_PALM - f * RIGHT_PALM:Dot(f)).Unit
-	local y, z = -f, -p
-	local hand = CFrame.fromMatrix(Vector3.zero, y:Cross(z), y, z) -- кисть в пространстве оружия
+	local x, y = -p, -f
+	local hand = CFrame.fromMatrix(Vector3.zero, x, y, x:Cross(y)) -- кисть в пространстве оружия
 	return hand:Inverse()
 end
 

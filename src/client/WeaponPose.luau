@@ -40,6 +40,10 @@ local POSES: { [string]: any } = {
 	Grenade = { grip = v(0.7, -0.6, -0.9), rot = CFrame.identity },
 }
 
+-- Левая кисть сгенерированных тел на цевье (в пространстве оружия: X вправо, Y вверх, −Z — ствол).
+local LEFT_FINGERS = v(0.25, 0.15, -0.95).Unit
+local LEFT_PALM = v(0.3, 1, 0)
+
 local function poseFor(id: string, def): any
 	if def and def.Kind == "Grenade" then
 		return POSES.Grenade
@@ -233,10 +237,31 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 		local dirToTarget = (target - shoulderL)
 		local wristL = target - (if dirToTarget.Magnitude > 0 then dirToTarget.Unit else L) * gripOff
 		local poleL = -rightCf * 0.6 - up
+		-- Сгенерированные тела: кисть снизу под цевьём, ладонь вверх-внутрь (+X кисти), пальцы вдоль цевья.
+		-- У обычных тел кисть — продолжение предплечья.
+		local handRot: CFrame? = nil
+		if char:GetAttribute("GeneratedBody") ~= nil then
+			local f = gun:VectorToWorldSpace(LEFT_FINGERS)
+			local pv = gun:VectorToWorldSpace(LEFT_PALM)
+			local x = (pv - f * pv:Dot(f)).Unit
+			local y = -f
+			handRot = CFrame.fromMatrix(Vector3.zero, x, y, x:Cross(y))
+		end
+		local handL: CFrame
+		if handRot then
+			handL = handRot + (target - (handRot * left.gripH).Position)
+			wristL = handL * left.wristH
+		end
 		local uL, lL = solve(left, shoulderL, wristL, poleL, up)
+		if handRot then
+			setJoint(left.shoulder, torsoCf, uL, w)
+			setJoint(left.elbow, uL, lL, w)
+			setJoint(left.wrist, lL, handL, w)
+			return
+		end
 		for _ = 1, 3 do
-			local handL = lL * left.handOffset
-			local miss = target - (handL * left.gripH).Position
+			local hL = lL * left.handOffset
+			local miss = target - (hL * left.gripH).Position
 			if miss.Magnitude < 0.02 then
 				break
 			end
