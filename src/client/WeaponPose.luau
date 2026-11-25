@@ -221,15 +221,6 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 	end
 	gun = gun + L * math.clamp(slide, -0.6, 0.6)
 
-	-- Короткие руки не дотягиваются до цевья: подтягиваем оружие к себе на нехватку.
-	if left and pose.left then
-		local shoulderL0 = (torsoCf * left.shoulder.c0).Position
-		local reachL = (left.a + left.b) * 0.95
-		local over = ((gun * pose.left) - shoulderL0).Magnitude - reachL
-		if over > 0 then
-			gun = gun - L * math.min(over, 0.7)
-		end
-	end
 
 	local rightHand, wrist, elbow = elbowFor(gun)
 	-- Локоть тянем к «ровному» положению; если оно недостижимо, решатель возьмёт ближайшее.
@@ -250,8 +241,14 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 	-- Левая рука на цевье (или у магазина при перезарядке). Кисть — продолжение предплечья;
 	-- запястье подбираем за пару шагов так, чтобы точка хвата кисти легла точно на цель.
 	if left and pose.left then
-		local target = gun * pose.left:Lerp(pose.mag or pose.left, st.reload)
 		local shoulderL = (torsoCf * left.shoulder.c0).Position
+		local leftLocal = pose.left:Lerp(pose.mag or pose.left, st.reload)
+		-- Короткие руки не дотягиваются до цевья: левая рука берётся ближе к себе по цевью.
+		local over = ((gun * leftLocal) - shoulderL).Magnitude - (left.a + left.b) * 0.95
+		if over > 0 then
+			leftLocal += v(0, 0, math.min(over, 0.6))
+		end
+		local target = gun * leftLocal
 		local gripOff = (left.gripH.Position - left.wristH).Magnitude
 		local dirToTarget = (target - shoulderL)
 		local wristL = target - (if dirToTarget.Magnitude > 0 then dirToTarget.Unit else L) * gripOff

@@ -14,8 +14,8 @@ local CharacterAnimService = {}
 -- Хват оружия у сгенерированных тел (GeneratedBody): их GripAttachment стоит посреди длинной
 -- кисти и повёрнут так, что ствол смотрит вдоль пальцев — с позой WeaponPose кисть выгибается.
 -- Ставим хват как у пистолетной рукоятки: точка в ладони, ствол вперёд по большому пальцу,
--- пальцы обхватывают рукоятку под углом ~30° к стволу, запястье ровное.
-local GRIP_ANGLE = math.rad(-120)
+-- пальцы обхватывают рукоятку вперёд-вниз (~30° от ствола), запястье ровное.
+local GRIP_ANGLE = math.rad(-60)
 local function fixGrips(char: Model)
 	if char:GetAttribute("GeneratedBody") == nil then
 		return
