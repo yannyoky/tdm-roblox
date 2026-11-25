@@ -176,7 +176,15 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 	if flat.Magnitude < 1e-3 then
 		return
 	end
-	local chest = torsoCf.Position + torsoCf.UpVector * (torso.Size.Y * 0.3)
+	-- Точка груди — чуть ниже середины между плечами (а не доля высоты торса): у тел разных
+	-- пропорций (сгенерированные модели с низкими узкими плечами) оружие остаётся у плеча.
+	local chest
+	if left then
+		local mid = (right.shoulder.c0.Position + left.shoulder.c0.Position) / 2
+		chest = torsoCf:PointToWorldSpace(mid - v(0, 0.1, 0))
+	else
+		chest = torsoCf.Position + torsoCf.UpVector * (torso.Size.Y * 0.3)
+	end
 	-- На бегу оружие несут наискосок у груди, стволом вниз-влево.
 	local aim = CFrame.lookAt(chest, chest + flat.Unit)
 		* ANG(rad(pitch * (1 - st.sprint) - 40 * st.sprint - 20 * st.reload), rad(50 * st.sprint), rad(-25 * st.sprint))
@@ -184,6 +192,15 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 	local gun = aim * CF(pose.grip) * CF(-0.15 * st.sprint, 0.1 * st.sprint, 0.35 * st.sprint)
 		* CF(0, 0.04 * kick, 0.28 * kick) * ANG(rad(7 * kick), 0, 0)
 		* pose.rot * ANG(0, 0, rad(40) * st.reload)
+	-- Короткие руки не дотягиваются до цевья: подтягиваем оружие к себе на нехватку.
+	if left and pose.left then
+		local shoulderL0 = (torsoCf * left.shoulder.c0).Position
+		local reachL = (left.a + left.b) * 0.95
+		local over = ((gun * pose.left) - shoulderL0).Magnitude - reachL
+		if over > 0 then
+			gun = gun - aim.LookVector * math.min(over, 0.7)
+		end
+	end
 
 	-- Правая рука: кисть держит рукоятку так же, как держала бы инструмент Roblox.
 	local rightHand = gun * right.gripH:Inverse()

@@ -11,7 +11,26 @@ local CharacterLook = require(ReplicatedStorage:WaitForChild("Shared").Character
 
 local CharacterAnimService = {}
 
+-- Хват оружия у сгенерированных тел (GeneratedBody): их GripAttachment стоит посреди длинной
+-- кисти и повёрнут так, что ствол смотрит вдоль пальцев — с позой WeaponPose кисть выгибается.
+-- Ставим хват как у пистолетной рукоятки: точка в ладони, ствол вперёд по большому пальцу,
+-- пальцы обхватывают рукоятку под углом ~30° к стволу, запястье ровное.
+local GRIP_ANGLE = math.rad(-120)
+local function fixGrips(char: Model)
+	if char:GetAttribute("GeneratedBody") == nil then
+		return
+	end
+	for _, side in { "Right", "Left" } do
+		local hand = char:FindFirstChild(side .. "Hand")
+		local grip = hand and hand:FindFirstChild(side .. "GripAttachment")
+		if hand and hand:IsA("BasePart") and grip and grip:IsA("Attachment") then
+			grip.CFrame = CFrame.new(0, -hand.Size.Y * 0.18, 0) * CFrame.Angles(GRIP_ANGLE, 0, 0)
+		end
+	end
+end
+
 local function onCharacter(char: Model)
+	fixGrips(char)
 	CharacterLook.applyAnimations(char)
 end
 
