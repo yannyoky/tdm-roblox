@@ -129,7 +129,7 @@ Appearance.Options = {
 Appearance.GeneratedForNpc = false
 
 -- Одежда в лобби (ещё нет стороны): простые вещи из гардероба Банды.
-Appearance.LobbyOutfit = { Faction = "Bandits", Top = "tee_gray", Bottom = "jeans", Shoes = "sneakers_white" }
+Appearance.LobbyOutfit = { Faction = "Bandits", Top = "tee_gray", Bottom = "baggy", Shoes = "sneakers_white" }
 
 -- Слоты одежды в порядке меню.
 Appearance.ClothingSlots = {

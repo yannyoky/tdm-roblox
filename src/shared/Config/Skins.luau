@@ -26,7 +26,7 @@ Skins.List = {
 		Unlock = { Type = "Default" },
 		Shirt = rgb(150, 30, 30),
 		Pants = rgb(60, 80, 120),
-		Outfit = { Top = "red_hoodie", Bottom = "jeans", Shoes = "sneakers_white" },
+		Outfit = { Top = "red_hoodie", Bottom = "baggy", Shoes = "sneakers_white" },
 	},
 	b_tracksuit = {
 		Faction = "Bandits",
