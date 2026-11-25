@@ -127,9 +127,9 @@ local function buildModel(): Model?
 	}
 	local look = AppearanceApply.randomLook()
 	local desc = AppearanceApply.describe(look, "Bandits", outfit, nil)
-	local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
-	if not ok then
-		warn("[Pedestrians] Внешность не загрузилась:", model)
+	local model = AppearanceApply.buildModel(look, desc, true)
+	if not model then
+		local ok
 		ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, Instance.new("HumanoidDescription"), Enum.HumanoidRigType.R15)
 		if not ok then
 			return nil

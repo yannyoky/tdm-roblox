@@ -40,7 +40,10 @@ Appearance.LookSlots = {
 -- Все id проверены через catalog.roblox.com. Только реалистичные вещи: старые «кубические»
 -- головы, причёски и тела Roblox убраны.
 Appearance.Options = {
-	-- Два тела. Parts — меши частей тела, Head — лицо по умолчанию для этого тела.
+	-- Два тела. Model — сгенерированная модель (тело с головой) из assets/characters/<Model>.rbxm
+	-- (src/shared/GeneratedBody.luau): если файл есть, персонаж игрока собирается из неё,
+	-- лицо, причёска и цвет кожи у неё свои. Без файла — каталожное тело:
+	-- Parts — меши частей тела, Head — лицо по умолчанию для этого тела.
 	-- Голова и тело подобраны и проверены в Studio вместе: голова садится на шею без зазора.
 	Body = {
 		{
@@ -48,6 +51,7 @@ Appearance.Options = {
 			Id = "male",
 			Gender = "M",
 			Name = "Мужское",
+			Model = "Male",
 			Head = "m_gta",
 			Parts = { Torso = 86020764157979, RightArm = 136084963335699, LeftArm = 118230420636257, LeftLeg = 88372396093345, RightLeg = 95060431528417 },
 		},
@@ -56,6 +60,7 @@ Appearance.Options = {
 			Id = "female",
 			Gender = "F",
 			Name = "Женское",
+			Model = "Female",
 			Head = "f_model",
 			Parts = { Torso = 122831550366162, RightArm = 95246976223366, LeftArm = 106832235837446, LeftLeg = 124333485905753, RightLeg = 86653892031792 },
 		},
@@ -118,6 +123,10 @@ Appearance.Options = {
 		{ Id = "aviators", Name = "Авиаторы", Asset = 376526673 },
 	},
 }
+
+-- Сгенерированные модели и для ботов с прохожими. false — у них каталожные тела с разными
+-- лицами и причёсками, иначе все боты одного пола на одно лицо.
+Appearance.GeneratedForNpc = false
 
 -- Одежда в лобби (ещё нет стороны): простые вещи из гардероба Банды.
 Appearance.LobbyOutfit = { Faction = "Bandits", Top = "tee_gray", Bottom = "jeans", Shoes = "sneakers_white" }

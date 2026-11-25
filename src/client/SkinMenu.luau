@@ -12,6 +12,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared.Net)
 local Skins = require(Shared.Config.Skins)
 local Appearance = require(Shared.Config.Appearance)
+local GeneratedBody = require(Shared.GeneratedBody)
 local Teams = require(Shared.Config.Teams)
 local Meta = require(Shared.Config.Meta)
 local Shop = require(Shared.Config.Shop)
@@ -307,7 +308,9 @@ function SkinMenu.init()
 
 		-- У головы с кожей в текстуре цвет тела задан самой головой: выбор не показываем.
 		local lookHead = Appearance.option("Head", look.Head or Appearance.GenderDefaults[gender].Head)
-		local fixedTone = lookHead ~= nil and lookHead.SkinTone ~= nil
+		-- У сгенерированного тела лицо, причёска, борода и кожа свои: остаются только очки.
+		local generated = GeneratedBody.has(bodyId)
+		local fixedTone = generated or (lookHead ~= nil and lookHead.SkinTone ~= nil)
 		if not fixedTone then
 			header(3, "Цвет кожи")
 			local tones = Ui.make("Frame", { LayoutOrder = 4, Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = list }, {
@@ -330,9 +333,10 @@ function SkinMenu.init()
 			end
 		end
 
-		header(5, "Лицо и причёска")
+		header(5, if generated then "Аксессуары" else "Лицо и причёска")
 		for i, slot in Appearance.LookSlots do
-			if slot.Gender == nil or slot.Gender == gender then
+			local baked = generated and slot.Key ~= "Glasses"
+			if not baked and (slot.Gender == nil or slot.Gender == gender) then
 				local current = look[slot.Key] or Appearance.GenderDefaults[gender][slot.Key] or Appearance.DefaultLook[slot.Key]
 				picker(5 + i, slot.Name, Appearance.optionsFor(slot.Key, gender), current, function(id)
 					setLook(slot.Key, id)

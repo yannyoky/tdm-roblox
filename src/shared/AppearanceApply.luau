@@ -2,6 +2,8 @@
 -- (комплект 3D-одежды из Config/Skins) и вещей, которые игрок заменил (Outfit).
 -- Вызывается только на сервере: ApplyDescription и LoadCharacterWithHumanoidDescription
 -- клиенту недоступны.
+local Players = game:GetService("Players")
+
 local Appearance = require(script.Parent.Config.Appearance)
 local Skins = require(script.Parent.Config.Skins)
 
@@ -18,6 +20,7 @@ local LAYER_ORDER = { TShirt = 1, Shirt = 2, Pants = 3, Shorts = 3, DressSkirt =
 
 -- Пропорции тела (реалистичные, общий рост для всех) задаёт CharacterLook.
 local CharacterLook = require(script.Parent.CharacterLook)
+local GeneratedBody = require(script.Parent.GeneratedBody)
 
 local function accessoryType(name: string): Enum.AccessoryType?
 	local ok, item = pcall(function()
@@ -166,6 +169,44 @@ function AppearanceApply.describe(
 	desc.FaceAccessory = table.concat(faceItems, ",")
 	CharacterLook.applyToDescription(desc)
 	return desc
+end
+
+-- Описание только с одеждой для сгенерированного тела: причёска и борода у него
+-- вылеплены в голове, их не надеваем. Очки и головные уборы остаются.
+function AppearanceApply.clothesOnly(desc: HumanoidDescription, look: { [string]: any }): HumanoidDescription
+	local copy = desc:Clone()
+	copy.HairAccessory = ""
+	local beard = Appearance.option("Beard", look.Beard)
+	if beard and beard.Asset then
+		local keep = {}
+		for _, id in string.split(copy.FaceAccessory, ",") do
+			if id ~= "" and id ~= tostring(beard.Asset) then
+				table.insert(keep, id)
+			end
+		end
+		copy.FaceAccessory = table.concat(keep, ",")
+	end
+	return copy
+end
+
+-- Модель персонажа: из сгенерированной модели тела (GeneratedBody), если она есть,
+-- иначе из каталожных частей. npc = true — бот или прохожий (Appearance.GeneratedForNpc).
+-- nil — не собралась (нет сети к каталогу и т.п.).
+function AppearanceApply.buildModel(look: { [string]: any }, desc: HumanoidDescription, npc: boolean?): Model?
+	look = AppearanceApply.sanitizeLook(look)
+	local generated = if npc then GeneratedBody.forNpc(look.Body) else GeneratedBody.has(look.Body)
+	if generated then
+		local model = GeneratedBody.build(look.Body, AppearanceApply.clothesOnly(desc, look))
+		if model then
+			return model
+		end
+	end
+	local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
+	if ok and model then
+		return model
+	end
+	warn("[AppearanceApply] Модель не собралась: ", model)
+	return nil
 end
 
 -- Случайная внешность для бота.
