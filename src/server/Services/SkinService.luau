@@ -13,10 +13,14 @@ local Skins = require(Shared.Config.Skins)
 local Meta = require(Shared.Config.Meta)
 local AppearanceApply = require(Shared.AppearanceApply)
 local CharacterLook = require(Shared.CharacterLook)
+local GeneratedBody = require(Shared.GeneratedBody)
 local Net = require(Shared.Net)
 
 local DataService = require(script.Parent.DataService)
 local ShopService = require(script.Parent.ShopService)
+local PhysicsSetup = require(script.Parent.PhysicsSetup)
+
+local StarterPlayer = game:GetService("StarterPlayer")
 
 local SkinService = {}
 
@@ -104,8 +108,48 @@ function SkinService.describe(player: Player, faction: string?): HumanoidDescrip
 	)
 end
 
+-- Персонаж из сгенерированной модели тела (GeneratedBody). Как LoadCharacter: старый
+-- персонаж удаляется, скрипты StarterCharacterScripts кладутся в новый.
+local function loadGenerated(player: Player, faction: string?): boolean
+	local look = SkinService.look(player)
+	if not GeneratedBody.has(look.Body) then
+		return false
+	end
+	local model = AppearanceApply.buildModel(look, SkinService.describe(player, faction))
+	if not model or model:GetAttribute(GeneratedBody.ATTR) == nil then
+		if model then
+			model:Destroy()
+		end
+		return false
+	end
+	model.Name = player.Name
+	local hum = model:FindFirstChildOfClass("Humanoid") :: Humanoid
+	hum.DisplayName = player.DisplayName
+	local scripts = StarterPlayer:FindFirstChild("StarterCharacterScripts")
+	for _, child in (scripts and scripts:GetChildren()) or {} do
+		local existing = model:FindFirstChild(child.Name)
+		if existing then
+			existing:Destroy()
+		end
+		child:Clone().Parent = model
+	end
+	local old = player.Character
+	model.Parent = workspace
+	player.Character = model
+	if old and old ~= model then
+		old:Destroy()
+	end
+	return true
+end
+
 -- Появление персонажа сразу в нужной внешности (вместо player:LoadCharacter()).
 function SkinService.loadCharacter(player: Player, faction: string?)
+	local okGenerated, generated = pcall(loadGenerated, player, faction)
+	if okGenerated and generated then
+		return
+	elseif not okGenerated then
+		warn("[SkinService] Сгенерированное тело не загрузилось, каталожное: ", generated)
+	end
 	local ok, err = pcall(function()
 		player:LoadCharacterWithHumanoidDescription(SkinService.describe(player, faction))
 	end)
@@ -130,10 +174,10 @@ end
 function SkinService.botModel(faction: string): Model
 	local list = Skins.Order[faction]
 	local skinId = if list then list[math.random(#list)] else nil
-	local desc = AppearanceApply.describe(AppearanceApply.randomLook(), faction, AppearanceApply.randomOutfit(faction), skinId)
-	local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
-	if not ok then
-		warn("[SkinService] Внешность бота не загрузилась: ", model)
+	local look = AppearanceApply.randomLook()
+	local desc = AppearanceApply.describe(look, faction, AppearanceApply.randomOutfit(faction), skinId)
+	local model = AppearanceApply.buildModel(look, desc, true)
+	if not model then
 		model = Players:CreateHumanoidModelFromDescription(Instance.new("HumanoidDescription"), Enum.HumanoidRigType.R15)
 	end
 	model:SetAttribute("Skin", skinId)
@@ -152,6 +196,24 @@ local function refreshLobbyCharacter(player: Player)
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	if not char or not hum or hum.Health <= 0 or not char:GetAttribute("InLobby") then
+		return
+	end
+	local look = SkinService.look(player)
+	local current = char:GetAttribute(GeneratedBody.ATTR)
+	if current ~= nil and current == look.Body and GeneratedBody.has(look.Body) then
+		-- То же сгенерированное тело: только переодеть.
+		GeneratedBody.dress(char, AppearanceApply.clothesOnly(SkinService.describe(player, nil), look))
+		return
+	elseif current ~= nil or GeneratedBody.has(look.Body) then
+		-- Сменилось тело: персонаж появляется заново на том же месте.
+		local pivot = char:GetPivot()
+		SkinService.loadCharacter(player, nil)
+		local fresh = player.Character
+		if fresh and fresh ~= char then
+			PhysicsSetup.prepareCharacter(fresh)
+			fresh:SetAttribute("InLobby", true)
+			fresh:PivotTo(pivot)
+		end
 		return
 	end
 	local ok = pcall(hum.ApplyDescription, hum, SkinService.describe(player, nil))
@@ -178,9 +240,9 @@ local function buildPreview(player: Player, request)
 			skinId = SkinService.selected(player, faction)
 		end
 		local desc = AppearanceApply.describe(look, faction, outfit, if faction then skinId else nil)
-		local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
+		local model = AppearanceApply.buildModel(look, desc)
 		local gui = player:FindFirstChildOfClass("PlayerGui")
-		if ok and model and gui and player.Parent == Players then
+		if model and gui and player.Parent == Players then
 			for _, inst in model:GetDescendants() do
 				if inst:IsA("Script") or inst:IsA("LocalScript") then
 					inst:Destroy()
@@ -197,8 +259,8 @@ local function buildPreview(player: Player, request)
 			end
 			folder:ClearAllChildren()
 			model.Parent = folder
-		elseif not ok then
-			warn("[SkinService] Предпросмотр не собрался: ", model)
+		elseif model then
+			model:Destroy()
 		end
 		request = previewQueued[player]
 	end
