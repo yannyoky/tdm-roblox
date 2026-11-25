@@ -192,37 +192,80 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 	local gun = aim * CF(pose.grip) * CF(-0.15 * st.sprint, 0.1 * st.sprint, 0.35 * st.sprint)
 		* CF(0, 0.04 * kick, 0.28 * kick) * ANG(rad(7 * kick), 0, 0)
 		* pose.rot * ANG(0, 0, rad(40) * st.reload)
+
+	-- Правая рука: кисть держит рукоятку так же, как держала бы инструмент Roblox.
+	-- Запястье должно быть ровным: предплечье продолжает линию кисти. Для этого локоть ставим
+	-- на продолжение кисти (запястье − ось кисти × длина предплечья) и сдвигаем оружие вперёд/назад
+	-- вдоль прицела, пока до локтя от плеча ровно длина плеча. Не выходит — ближайший вариант.
+	local shoulderR = (torsoCf * right.shoulder.c0).Position
+	local up = aim.UpVector
+	local rightCf = aim.RightVector
+	local L = aim.LookVector
+	local wristDir = right.wristH.Magnitude > 1e-3 and -right.wristH.Unit or v(0, -1, 0)
+	local function elbowFor(g: CFrame): (CFrame, Vector3, Vector3)
+		local hand = g * right.gripH:Inverse()
+		local wr = hand * right.wristH
+		local u = hand:VectorToWorldSpace(wristDir)
+		return hand, wr, wr - u * right.b
+	end
+	local _, _, e0 = elbowFor(gun)
+	local d = e0 - shoulderR
+	local bq = L:Dot(d)
+	local disc = bq * bq - (d:Dot(d) - right.a * right.a)
+	local slide
+	if disc >= 0 then
+		local r1, r2 = -bq - math.sqrt(disc), -bq + math.sqrt(disc)
+		slide = if math.abs(r1) < math.abs(r2) then r1 else r2
+	else
+		slide = -bq
+	end
+	gun = gun + L * math.clamp(slide, -0.6, 0.6)
+
 	-- Короткие руки не дотягиваются до цевья: подтягиваем оружие к себе на нехватку.
 	if left and pose.left then
 		local shoulderL0 = (torsoCf * left.shoulder.c0).Position
 		local reachL = (left.a + left.b) * 0.95
 		local over = ((gun * pose.left) - shoulderL0).Magnitude - reachL
 		if over > 0 then
-			gun = gun - aim.LookVector * math.min(over, 0.7)
+			gun = gun - L * math.min(over, 0.7)
 		end
 	end
 
-	-- Правая рука: кисть держит рукоятку так же, как держала бы инструмент Roblox.
-	local rightHand = gun * right.gripH:Inverse()
-	local wrist = rightHand * right.wristH
-	local shoulderR = (torsoCf * right.shoulder.c0).Position
-	local up = aim.UpVector
-	local rightCf = aim.RightVector
-	local uR, lR = solve(right, shoulderR, wrist, rightCf * 0.6 - up, rightCf - up * 0.3)
+	local rightHand, wrist, elbow = elbowFor(gun)
+	-- Локоть тянем к «ровному» положению; если оно недостижимо, решатель возьмёт ближайшее.
+	local pole = elbow - shoulderR
+	local toWrist = wrist - shoulderR
+	if toWrist.Magnitude > 1e-3 then
+		pole -= toWrist.Unit * pole:Dot(toWrist.Unit)
+	end
+	if pole.Magnitude < 0.05 then
+		pole = rightCf * 0.6 - up
+	end
+	local uR, lR = solve(right, shoulderR, wrist, pole, rightCf - up * 0.3)
 	local w = st.weight
 	setJoint(right.shoulder, torsoCf, uR, w)
 	setJoint(right.elbow, uR, lR, w)
 	setJoint(right.wrist, lR, rightHand, w)
 
-	-- Левая рука на цевье (или у магазина при перезарядке).
+	-- Левая рука на цевье (или у магазина при перезарядке). Кисть — продолжение предплечья;
+	-- запястье подбираем за пару шагов так, чтобы точка хвата кисти легла точно на цель.
 	if left and pose.left then
 		local target = gun * pose.left:Lerp(pose.mag or pose.left, st.reload)
 		local shoulderL = (torsoCf * left.shoulder.c0).Position
-		-- Кисть — продолжение предплечья; запястье чуть позади точки хвата.
 		local gripOff = (left.gripH.Position - left.wristH).Magnitude
 		local dirToTarget = (target - shoulderL)
-		local wristL = target - (if dirToTarget.Magnitude > 0 then dirToTarget.Unit else aim.LookVector) * gripOff
-		local uL, lL = solve(left, shoulderL, wristL, -rightCf * 0.6 - up, up)
+		local wristL = target - (if dirToTarget.Magnitude > 0 then dirToTarget.Unit else L) * gripOff
+		local poleL = -rightCf * 0.6 - up
+		local uL, lL = solve(left, shoulderL, wristL, poleL, up)
+		for _ = 1, 3 do
+			local handL = lL * left.handOffset
+			local miss = target - (handL * left.gripH).Position
+			if miss.Magnitude < 0.02 then
+				break
+			end
+			wristL += miss
+			uL, lL = solve(left, shoulderL, wristL, poleL, up)
+		end
 		setJoint(left.shoulder, torsoCf, uL, w)
 		setJoint(left.elbow, uL, lL, w)
 		setJoint(left.wrist, lL, lL * left.handOffset, w)
