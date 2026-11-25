@@ -26,9 +26,19 @@ function GeneratedBody.template(bodyId: string?): Model?
 		return nil
 	end
 	local folder = ReplicatedStorage:FindFirstChild("CharacterModels")
-	local model = folder and folder:FindFirstChild(name)
-	if model and model:IsA("Model") and model:FindFirstChildOfClass("Humanoid") then
-		return model
+	if not folder then
+		return nil
+	end
+	-- Имя файла без учёта регистра: male.rbxm и Male.rbxm — одно и то же.
+	local wanted = string.lower(name)
+	for _, child in folder:GetChildren() do
+		if string.lower(child.Name) == wanted then
+			-- Save to File может сохранить модель как Folder с моделью внутри.
+			local model = if child:IsA("Model") then child else child:FindFirstChildWhichIsA("Model")
+			if model and model:FindFirstChildOfClass("Humanoid") then
+				return model
+			end
+		end
 	end
 	return nil
 end
