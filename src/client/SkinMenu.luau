@@ -138,6 +138,10 @@ function SkinMenu.init()
 	local angle = math.rad(200)
 	local dragging = false
 	local previewModel: Model? = nil
+	-- Рамка камеры под размер модели: центр и высота (у сгенерированных моделей свой масштаб).
+	local previewCenter = Vector3.new(0, 0, 0)
+	local previewHeight = 5.5
+	local previewToken = 0
 
 	local function loadState()
 		look = decode("Look")
@@ -157,14 +161,51 @@ function SkinMenu.init()
 		end
 	end
 
+	local function countParts(model: Instance): number
+		local n = 0
+		for _, inst in model:GetDescendants() do
+			if inst:IsA("BasePart") then
+				n += 1
+			end
+		end
+		return n
+	end
+
+	-- Модель приходит с сервера по частям: ждём, пока доедут все детали (сервер пишет
+	-- их число в атрибут Parts), иначе в окне оказывается пустая копия.
 	local function showModel(source: Instance)
 		if not source:IsA("Model") then
 			return
 		end
-		world:ClearAllChildren()
+		previewToken += 1
+		local token = previewToken
+		local expected = source:GetAttribute("Parts")
+		local deadline = os.clock() + 8
+		while source.Parent and token == previewToken and os.clock() < deadline do
+			local have = countParts(source)
+			if have > 0 and (type(expected) ~= "number" or have >= expected) then
+				break
+			end
+			task.wait(0.1)
+		end
+		if token ~= previewToken or not source.Parent then
+			return
+		end
+		source.Archivable = true
+		for _, inst in source:GetDescendants() do
+			inst.Archivable = true
+		end
 		local clone = source:Clone()
+		if not clone or countParts(clone) == 0 then
+			status.Text = "Не удалось показать модель"
+			return
+		end
+		world:ClearAllChildren()
 		clone:PivotTo(CFrame.new())
 		clone.Parent = world
+		local box, size = clone:GetBoundingBox()
+		previewCenter = box.Position
+		previewHeight = math.max(size.Y, 1)
 		previewModel = clone
 		status.Text = ""
 	end
@@ -176,13 +217,11 @@ function SkinMenu.init()
 				return
 			end
 			folder.ChildAdded:Connect(function(child)
-				-- Даём детям модели доехать до клиента.
-				task.wait()
-				showModel(child)
+				task.spawn(showModel, child)
 			end)
 			local existing = folder:FindFirstChildWhichIsA("Model")
 			if existing then
-				showModel(existing)
+				task.spawn(showModel, existing)
 			end
 		end
 		gui.ChildAdded:Connect(watchFolder)
@@ -215,10 +254,12 @@ function SkinMenu.init()
 		if not dragging then
 			angle += dt * 0.25
 		end
-		-- На вкладке внешности камера ближе к лицу.
+		-- На вкладке внешности камера ближе к лицу. Расстояние — от роста модели
+		-- (FieldOfView 30: в кадр по высоте влезает примерно 0.53 расстояния).
 		local closeUp = tab == LOOK_TAB
-		local target = if closeUp then Vector3.new(0, 1.3, 0) else Vector3.new(0, 0.2, 0)
-		local dist = if closeUp then 7 else 13
+		local h = previewHeight
+		local target = previewCenter + Vector3.new(0, if closeUp then h * 0.3 else 0, 0)
+		local dist = if closeUp then h * 1.25 else h * 2.25
 		vpCamera.CFrame = CFrame.lookAt(target + Vector3.new(math.sin(angle) * dist, 0.4, math.cos(angle) * dist), target)
 	end)
 
