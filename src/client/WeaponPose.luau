@@ -31,10 +31,11 @@ local MAX_DISTANCE = 220 -- дальше позу не считаем (не ви
 -- Где оружие (точка хвата правой руки) относительно груди: X вправо, Y вверх, −Z вперёд.
 --   left — точка левой руки на оружии (в пространстве оружия, ствол в −Z), nil — левая рука свободна
 --   mag  — куда идёт левая рука при перезарядке
+--   sh   — для сгенерированных тел: от правого плеча (X в студах, Y и Z в долях длины руки)
 local POSES: { [string]: any } = {
-	Long = { grip = v(0.45, -0.25, -1.05), rot = ANG(0, rad(3), 0), left = v(0, 0.2, -1.05), mag = v(0, -0.2, -0.45) },
-	SMG = { grip = v(0.45, -0.2, -1.0), rot = ANG(0, rad(3), 0), left = v(0, 0.22, -0.75), mag = v(0, -0.15, -0.35) },
-	Pistol = { grip = v(0.15, 0, -1.75), rot = ANG(0, rad(2), 0), left = v(-0.12, -0.12, 0.06), mag = v(0, -0.45, 0.05) },
+	Long = { grip = v(0.45, -0.25, -1.05), sh = v(-0.05, -0.2, -0.55), rot = ANG(0, rad(3), 0), left = v(0, 0.2, -1.05), mag = v(0, -0.2, -0.45) },
+	SMG = { grip = v(0.45, -0.2, -1.0), sh = v(-0.05, -0.15, -0.5), rot = ANG(0, rad(3), 0), left = v(0, 0.22, -0.75), mag = v(0, -0.15, -0.35) },
+	Pistol = { grip = v(0.15, 0, -1.75), sh = v(-0.4, -0.05, -0.85), rot = ANG(0, rad(2), 0), left = v(-0.12, -0.12, 0.06), mag = v(0, -0.45, 0.05) },
 	Melee = { grip = v(0.75, -0.75, -0.9), rot = ANG(rad(35), rad(10), rad(-15)) },
 	Grenade = { grip = v(0.7, -0.6, -0.9), rot = CFrame.identity },
 }
@@ -186,52 +187,31 @@ local function poseCharacter(char: Model, dt: number, camPos: Vector3, myPitch: 
 		chest = torsoCf.Position + torsoCf.UpVector * (torso.Size.Y * 0.3)
 	end
 	-- На бегу оружие несут наискосок у груди, стволом вниз-влево.
-	local aim = CFrame.lookAt(chest, chest + flat.Unit)
-		* ANG(rad(pitch * (1 - st.sprint) - 40 * st.sprint - 20 * st.reload), rad(50 * st.sprint), rad(-25 * st.sprint))
+	local aimRot = ANG(rad(pitch * (1 - st.sprint) - 40 * st.sprint - 20 * st.reload), rad(50 * st.sprint), rad(-25 * st.sprint))
+	local aim = CFrame.lookAt(chest, chest + flat.Unit) * aimRot
+	local shoulderR = (torsoCf * right.shoulder.c0).Position
+	-- Сгенерированные тела (узкие низкие плечи, другие длины рук): оружие ставим от правого плеча,
+	-- расстояния — в долях длины руки, чтобы локоть уходил вниз-наружу, а не за спину или поперёк груди.
+	local anchor
+	if pose.sh and char:GetAttribute("GeneratedBody") ~= nil then
+		local A = right.a + right.b
+		anchor = CFrame.lookAt(shoulderR, shoulderR + flat.Unit) * aimRot * CF(pose.sh.X, pose.sh.Y * A, pose.sh.Z * A)
+	else
+		anchor = aim * CF(pose.grip)
+	end
 	local kick = st.kick
-	local gun = aim * CF(pose.grip) * CF(-0.15 * st.sprint, 0.1 * st.sprint, 0.35 * st.sprint)
+	local gun = anchor * CF(-0.15 * st.sprint, 0.1 * st.sprint, 0.35 * st.sprint)
 		* CF(0, 0.04 * kick, 0.28 * kick) * ANG(rad(7 * kick), 0, 0)
 		* pose.rot * ANG(0, 0, rad(40) * st.reload)
 
-	-- Правая рука: кисть держит рукоятку так же, как держала бы инструмент Roblox.
-	-- Запястье должно быть ровным: предплечье продолжает линию кисти. Для этого локоть ставим
-	-- на продолжение кисти (запястье − ось кисти × длина предплечья) и сдвигаем оружие вперёд/назад
-	-- вдоль прицела, пока до локтя от плеча ровно длина плеча. Не выходит — ближайший вариант.
-	local shoulderR = (torsoCf * right.shoulder.c0).Position
+	-- Правая рука: кисть держит рукоятку так же, как держала бы инструмент Roblox;
+	-- локоть — вниз и наружу, лёгкий изгиб запястья допустим.
 	local up = aim.UpVector
 	local rightCf = aim.RightVector
 	local L = aim.LookVector
-	local wristDir = right.wristH.Magnitude > 1e-3 and -right.wristH.Unit or v(0, -1, 0)
-	local function elbowFor(g: CFrame): (CFrame, Vector3, Vector3)
-		local hand = g * right.gripH:Inverse()
-		local wr = hand * right.wristH
-		local u = hand:VectorToWorldSpace(wristDir)
-		return hand, wr, wr - u * right.b
-	end
-	local _, _, e0 = elbowFor(gun)
-	local d = e0 - shoulderR
-	local bq = L:Dot(d)
-	local disc = bq * bq - (d:Dot(d) - right.a * right.a)
-	local slide
-	if disc >= 0 then
-		local r1, r2 = -bq - math.sqrt(disc), -bq + math.sqrt(disc)
-		slide = if math.abs(r1) < math.abs(r2) then r1 else r2
-	else
-		slide = -bq
-	end
-	gun = gun + L * math.clamp(slide, -0.6, 0.6)
-
-
-	local rightHand, wrist, elbow = elbowFor(gun)
-	-- Локоть тянем к «ровному» положению; если оно недостижимо, решатель возьмёт ближайшее.
-	local pole = elbow - shoulderR
-	local toWrist = wrist - shoulderR
-	if toWrist.Magnitude > 1e-3 then
-		pole -= toWrist.Unit * pole:Dot(toWrist.Unit)
-	end
-	if pole.Magnitude < 0.05 then
-		pole = rightCf * 0.6 - up
-	end
+	local rightHand = gun * right.gripH:Inverse()
+	local wrist = (rightHand * right.wristH)
+	local pole = rightCf * 0.7 - up
 	local uR, lR = solve(right, shoulderR, wrist, pole, rightCf - up * 0.3)
 	local w = st.weight
 	setJoint(right.shoulder, torsoCf, uR, w)
