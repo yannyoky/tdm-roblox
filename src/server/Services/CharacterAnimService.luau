@@ -12,10 +12,23 @@ local CharacterLook = require(ReplicatedStorage:WaitForChild("Shared").Character
 local CharacterAnimService = {}
 
 -- Хват оружия у сгенерированных тел (GeneratedBody): их GripAttachment стоит посреди длинной
--- кисти и повёрнут так, что ствол смотрит вдоль пальцев — с позой WeaponPose кисть выгибается.
--- Ставим хват как у пистолетной рукоятки: точка в ладони, ствол вперёд по большому пальцу,
--- пальцы обхватывают рукоятку вперёд-вниз (~30° от ствола), запястье ровное.
-local GRIP_ANGLE = math.rad(-90)
+-- кисти и повёрнут так, что ствол смотрит вдоль пальцев, а ладонь — вверх.
+-- Ставим хват так, чтобы при позе WeaponPose (локоть вниз-наружу) кисть продолжала предплечье:
+-- пальцы (−Y кисти) вперёд и чуть внутрь по ходу ствола, ладонь (−Z кисти) внутрь к оружию.
+-- Направления — в пространстве оружия (X вправо, Y вверх, −Z — ствол). Левая кисть лежит
+-- под цевьём ладонью вверх — для неё оставляем простой поворот.
+local RIGHT_FINGERS = Vector3.new(-0.35, 0.05, -0.94).Unit
+local RIGHT_PALM = Vector3.new(-1, -0.3, 0)
+local LEFT_ANGLE = math.rad(-90)
+
+local function rightGripRotation(): CFrame
+	local f = RIGHT_FINGERS
+	local p = (RIGHT_PALM - f * RIGHT_PALM:Dot(f)).Unit
+	local y, z = -f, -p
+	local hand = CFrame.fromMatrix(Vector3.zero, y:Cross(z), y, z) -- кисть в пространстве оружия
+	return hand:Inverse()
+end
+
 local function fixGrips(char: Model)
 	if char:GetAttribute("GeneratedBody") == nil then
 		return
@@ -24,7 +37,8 @@ local function fixGrips(char: Model)
 		local hand = char:FindFirstChild(side .. "Hand")
 		local grip = hand and hand:FindFirstChild(side .. "GripAttachment")
 		if hand and hand:IsA("BasePart") and grip and grip:IsA("Attachment") then
-			grip.CFrame = CFrame.new(0, -hand.Size.Y * 0.18, 0) * CFrame.Angles(GRIP_ANGLE, 0, 0)
+			local rot = if side == "Right" then rightGripRotation() else CFrame.Angles(LEFT_ANGLE, 0, 0)
+			grip.CFrame = CFrame.new(0, -hand.Size.Y * 0.18, 0) * rot
 		end
 	end
 end
