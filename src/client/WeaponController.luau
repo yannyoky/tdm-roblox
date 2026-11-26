@@ -9,6 +9,7 @@ local Debris = game:GetService("Debris")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Weapons = require(Shared.Config.Weapons)
 local Net = require(Shared.Net)
+local AIM = require(Shared.Config.Movement).Aim
 local PlayerSettings = require(script.Parent.PlayerSettings)
 local Audio = require(script.Parent.Audio)
 local Viewmodel = require(script.Parent.Viewmodel)
@@ -53,6 +54,8 @@ function WeaponController.init()
 	local current: Tool? = nil
 	local firing = false
 	local lastShot = 0
+	local pendingShot = false -- одиночный выстрел, нажатый на бегу: выстрелит, когда оружие поднимется
+	local lastSprint = 0
 	local hooked = setmetatable({}, { __mode = "k" })
 
 	local function currentDef()
@@ -70,6 +73,18 @@ function WeaponController.init()
 			return
 		end
 		local now = os.clock()
+		-- На бегу огнестрельным не стреляем: сначала бег прерывается и оружие поднимается.
+		local char0 = player.Character
+		if not def.Melee and char0 then
+			if char0:GetAttribute("Sprinting") then
+				lastSprint = now
+			end
+			if now - lastSprint < AIM.FireAfterSprint then
+				pendingShot = firing
+				return
+			end
+		end
+		pendingShot = false
 		if now - lastShot < 1 / def.FireRate then
 			return
 		end
@@ -127,6 +142,14 @@ function WeaponController.init()
 		Viewmodel.onFire()
 	end
 
+	local function setFiring(on: boolean)
+		firing = on
+		local char = player.Character
+		if char then
+			char:SetAttribute("Firing", on)
+		end
+	end
+
 	local function hookTool(tool: Instance)
 		if not tool:IsA("Tool") or hooked[tool] or tool:GetAttribute("WeaponId") == nil then
 			return
@@ -146,15 +169,16 @@ function WeaponController.init()
 		tool.Unequipped:Connect(function()
 			if current == tool then
 				current = nil
-				firing = false
+				setFiring(false)
+				pendingShot = false
 			end
 		end)
 		tool.Activated:Connect(function()
-			firing = true
+			setFiring(true)
 			fireOnce()
 		end)
 		tool.Deactivated:Connect(function()
-			firing = false
+			setFiring(false)
 		end)
 	end
 
@@ -184,12 +208,18 @@ function WeaponController.init()
 	end
 
 	-- Автоматический огонь, пока зажата кнопка.
+	-- Одиночный выстрел, нажатый на бегу, уходит, как только оружие поднято (если кнопку ещё держат).
 	RunService.Heartbeat:Connect(function()
+		local char = player.Character
+		if char and char:GetAttribute("Sprinting") then
+			lastSprint = os.clock()
+		end
 		if not firing then
+			pendingShot = false
 			return
 		end
 		local _, def = currentDef()
-		if def and def.Automatic then
+		if def and (def.Automatic or pendingShot) then
 			fireOnce()
 		end
 	end)

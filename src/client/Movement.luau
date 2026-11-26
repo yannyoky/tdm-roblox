@@ -16,6 +16,8 @@ local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Co
 local CrouchPose = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("CrouchPose"))
 local Net = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Net"))
 local SPRINT = Config.Sprint
+local AIM = Config.Aim
+local PlayerSettings = require(script.Parent.PlayerSettings)
 local PARKOUR = Config.Parkour
 
 local player = Players.LocalPlayer
@@ -81,6 +83,26 @@ local function onCrouchAction(_, inputState: Enum.UserInputState)
 end
 
 ------------------------------------------------------------------------
+-- Прицеливание: с огнестрельным оружием в руках зажата правая кнопка мыши (L2 на геймпаде)
+-- или включён оптический прицел.
+
+local function isAiming(char: Model): boolean
+	local tool = char:FindFirstChildOfClass("Tool")
+	if not tool or tool:GetAttribute("WeaponId") == nil then
+		return false
+	end
+	if PlayerSettings.isAiming() or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+		return true
+	end
+	for _, pad in UserInputService:GetConnectedGamepads() do
+		if UserInputService:IsGamepadButtonDown(pad, Enum.KeyCode.ButtonL2) then
+			return true
+		end
+	end
+	return false
+end
+
+------------------------------------------------------------------------
 -- Бег
 
 local function onSprintAction(_, inputState: Enum.UserInputState, input: InputObject)
@@ -110,9 +132,13 @@ local function updateSprint(dt: number)
 	if crouching and (hum.SeatPart or char:GetAttribute("Downed")) then
 		setCrouch(false)
 	end
+	-- Прицел и стрельба (атрибут Firing ставит WeaponController) не дают бежать.
+	local aiming = isAiming(char)
+	local firing = char:GetAttribute("Firing") == true
 	local canSprint = wantSprint and moving and not crouching and not exhausted and not busy and hum.SeatPart == nil
 		and hum:GetState() ~= Enum.HumanoidStateType.Climbing and not char:GetAttribute("InLobby")
-		and not char:GetAttribute("Downed")
+		and not char:GetAttribute("Downed") and not aiming and not firing
+	char:SetAttribute("Sprinting", canSprint)
 
 	if canSprint then
 		stamina = math.max(0, stamina - SPRINT.Drain * dt)
@@ -129,11 +155,14 @@ local function updateSprint(dt: number)
 
 	local sprintSpeed = baseSpeed * SPRINT.Multiplier
 	local crouchSpeed = baseSpeed * CROUCH_SPEED
+	local aimSpeed = baseSpeed * AIM.SpeedMultiplier
 	if canSprint then
 		hum.WalkSpeed = sprintSpeed
 	elseif crouching then
 		hum.WalkSpeed = crouchSpeed
-	elseif hum.WalkSpeed == sprintSpeed or hum.WalkSpeed == crouchSpeed then
+	elseif aiming then
+		hum.WalkSpeed = aimSpeed
+	elseif hum.WalkSpeed == sprintSpeed or hum.WalkSpeed == crouchSpeed or hum.WalkSpeed == aimSpeed then
 		hum.WalkSpeed = baseSpeed
 	end
 	char:SetAttribute("Stamina", math.floor(stamina))

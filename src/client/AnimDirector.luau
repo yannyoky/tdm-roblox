@@ -105,11 +105,18 @@ local function build(char: Model)
 	if not animator then
 		return
 	end
-	-- Стандартный Animate выключаем и гасим его анимации.
-	local animate = char:WaitForChild("Animate", 5)
-	if animate and animate:IsA("LocalScript") then
-		animate.Disabled = true
+	-- Стандартный Animate выключаем и гасим его анимации. Не ждём его: у сгенерированных тел
+	-- Animate нет вовсе, и ожидание оставляло персонажа без анимаций на первые секунды после спавна.
+	local function killAnimate(a: Instance)
+		if a.Name == "Animate" and (a:IsA("LocalScript") or a:IsA("Script")) then
+			(a :: any).Disabled = true
+		end
 	end
+	local animate = char:FindFirstChild("Animate")
+	if animate then
+		killAnimate(animate)
+	end
+	local lateAnimate = char.ChildAdded:Connect(killAnimate)
 	for _, t in animator:GetPlayingAnimationTracks() do
 		t:Stop(0.2)
 	end
@@ -179,7 +186,7 @@ local function build(char: Model)
 		idle2Until = 0,
 		nextIdle2 = now + math.random(Config.Idle2Min, Config.Idle2Max),
 		blending = false,
-		conns = {},
+		conns = { lateAnimate },
 	}
 	rig = r
 	table.insert(
